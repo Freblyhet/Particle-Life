@@ -1,0 +1,10 @@
+/build
+/.vscode
+/glad
+/glfw
+*.exe
+*.dll
+*.dylib
+*.o
+*.obj
+*.log
