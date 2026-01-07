@@ -2,77 +2,69 @@
 
 A sophisticated particle life simulation featuring emergent behavior, dynamic real-time controls, modular architecture, and advanced interaction modes. Watch particles self-organize into complex patterns like swirling galaxies, flocking behaviors, and stable ecosystems. Build custom particle arrangements with precision spawning tools!
 
-## 🎬 Screenshots
+## Screenshots
 
 ### Modern Interface with Enhanced Controls
-![Initial State](ParticleLifeScreenshots/initial_20260107_114559_206.png)
-*Clean, modern interface with zero particles mode and spawn controls*
-
-### Interactive Particle Spawning
-![Spawn Mode](ParticleLifeScreenshots/selection_20260107_114639_878.png)
-*New spawn mode system - click to add individual particles or switch to interaction mode*
-
-### Mouse Interaction & Force Dynamics
-![Mouse Interaction](ParticleLifeScreenshots/interaction_20260107_114620_750.png)
-*Enhanced mouse interaction with 16x stronger forces and visual feedback*
+![Particle Life Demo](ParticleLifeScreenshots/particle1.png)
+*Main simulation view showing particle interactions and modern UI*
 
 ### Force Matrix Editor
-![Force Matrix](ParticleLifeScreenshots/force_matrix_20260107_114626_276.png)
+![Force Matrix Editor](ParticleLifeScreenshots/particle2.png)
 *Interactive force matrix editor with color-coded sliders and real-time updates*
 
-### Visual Effects & Trails
-![Visual Effects](ParticleLifeScreenshots/visual_effects_20260107_114630_100.png)
-*Advanced visual effects: trails, glow, color-by-speed, and dynamic sizing*
+### Dynamic Controls Interface
+![Dynamic Controls](ParticleLifeScreenshots/particle3.png)
+*Modern floating panel UI with real-time controls and visual feedback*
 
-### Emergent Chaos Patterns  
-![Chaos Mode](ParticleLifeScreenshots/chaos_20260107_114632_734.png)
-*Complex emergent behaviors from randomized force matrices*
+### Emergent Patterns & Behaviors
+![Emergent Patterns](ParticleLifeScreenshots/particle4.png)
+*Complex emergent behaviors and patterns from particle interactions*
 
-## ✨ Features
+## Features
 
-### 🎯 Advanced Particle Management
+### Advanced Particle Management
 - **Zero to thousands**: Scale from 0 to 5000+ particles dynamically
 - **Precision spawning**: Click to place individual particles or spawn in bulk
 - **Smart interaction modes**: Toggle between spawn mode and interaction mode
 - **Multi-type support**: Up to 8 different particle types with unique behaviors
 - **Real-time editing**: Add/remove particles while simulation runs
 
-### 🎮 Dual Interaction System
-- **🎯 Spawn Mode**: Left-click to place individual particles precisely
-- **💫 Interact Mode**: Left-click and drag to attract/repel particles  
-- **🌟 Multi-spawn**: Right-click for bulk particle spawning (1-50 at once)
-- **🗑️ Removal tool**: Middle-click to remove particles in radius
-- **📸 Built-in screenshots**: Press 'P' for instant screenshots with notifications
+### Dual Interaction System
+- **Spawn Mode**: Left-click to place individual particles precisely
+- **Interact Mode**: Left-click and drag to attract/repel particles  
+- **Multi-spawn**: Right-click for bulk particle spawning (1-50 at once)
+- **Removal tool**: Middle-click to remove particles in radius
+- **Built-in screenshots**: Press 'P' for instant screenshots with notifications
 
-### 🎨 Modern Interface Design
+### Modern Interface Design
 - **Intuitive controls**: Clean, organized panels with helpful tooltips
 - **Real-time feedback**: Live particle counts, FPS monitoring, interaction status
 - **Smart UI**: Context-sensitive instructions and mode indicators
 - **Keyboard shortcuts**: Space=Pause, R=Reset, P=Screenshot with visual feedback
 - **Professional styling**: Modern dark theme with smooth animations
 
-### ⚡ Enhanced Performance & Architecture
+### Enhanced Performance & Architecture
 - **Modular design**: Clean separation of simulation, rendering, and UI systems
 - **Multi-threading**: Parallel force calculations for smooth performance
 - **Spatial optimization**: Advanced spatial hashing for large particle counts  
 - **Modern C++17**: RAII resource management and thread-safe operations
 - **Dynamic optimization**: Auto-adjusting performance based on particle count
 
-### 🔬 Advanced Physics & Simulation
+### Advanced Physics & Simulation
 - **Dynamic force matrix**: 64 unique interaction parameters (8x8 types)
 - **Emergent behaviors**: Natural flocking, clustering, spiral formation
 - **Real-time physics**: Instant parameter updates with visual feedback
 - **Complex ecosystems**: Predator-prey dynamics and stable equilibria
 - **Force randomization**: Generate chaotic systems with one click
 
-### 🎨 Visual Effects System
+### Visual Effects System
 - **Dynamic particle trails**: Adjustable length, opacity, and fade patterns
 - **Color-by-velocity**: Real-time speed visualization with smooth gradients
 - **Particle sizing**: Dynamic scaling based on velocity or force
 - **Glow effects**: Beautiful particle halos with customizable intensity
 - **Advanced blending**: Professional-quality visual overlays
 
-### 🛠️ Developer-Grade Architecture
+### Developer-Grade Architecture
 - **Thread-safe core**: Mutex-protected operations for safe multi-threading
 - **Spatial optimization**: Efficient O(n) collision detection with spatial hashing
 - **Memory management**: Modern C++ RAII with optimized vector operations
@@ -187,9 +179,9 @@ make -j$(nproc)
 
 ## Usage
 
-### 🎮 Controls & Interaction
+### Controls & Interaction
 
-#### 🎯 Mouse Modes (Toggle via UI)
+#### Mouse Modes (Toggle via UI)
 **Spawn Mode** (Default for zero particles):
 - **Left Click**: Place individual particles precisely  
 - **Right Click**: Bulk spawn 1-50 particles
@@ -200,13 +192,13 @@ make -j$(nproc)
 - **Right Click**: Quick spawn at cursor
 - **Middle Click**: Remove particles in radius
 
-#### ⌨️ Keyboard Shortcuts
+#### Keyboard Shortcuts
 - **SPACE**: Pause/Resume simulation
 - **R**: Randomize force matrix for emergent chaos
 - **P**: Take screenshot with visual notification
 - **ESC**: Reset simulation to default state
 
-### 🎨 Interface Panels
+### Interface Panels
 
 #### Main Control Panel
 - **Particle Management**: Set count from 0-1000+ particles
@@ -231,7 +223,7 @@ make -j$(nproc)
 - **Threading Status**: Multi-core utilization display
 - **Memory Usage**: Particle count and optimization metrics
 
-### 🚀 Workflow Examples
+### Workflow Examples
 
 #### Building Custom Particle Arrangements
 1. **Start Fresh**: Set particle count to 0
@@ -350,27 +342,27 @@ src/
 - **Force Factor 0.15-0.25**: Stable but dynamic behavior
 - **Threading ON**: Essential for smooth real-time control
 
-## 🆕 Recent Updates & Changelog
+## Recent Updates & Changelog
 
 ### Version 2.0 - Enhanced Interaction & Documentation
 **New Features:**
-- 🎯 **Dual Mouse Modes**: Toggle between precision spawning and interaction modes
-- 🔢 **Zero Particles Support**: Start completely empty and build custom arrangements
-- 📸 **Built-in Screenshots**: Press 'P' for instant screenshots with visual notifications
-- 💫 **Enhanced Mouse Forces**: 16x stronger interaction forces for better feedback
-- 🎨 **Improved UI**: Mode indicators, better tooltips, and status feedback
+- **Dual Mouse Modes**: Toggle between precision spawning and interaction modes
+- **Zero Particles Support**: Start completely empty and build custom arrangements
+- **Built-in Screenshots**: Press 'P' for instant screenshots with visual notifications
+- **Enhanced Mouse Forces**: 16x stronger interaction forces for better feedback
+- **Improved UI**: Mode indicators, better tooltips, and status feedback
 
 **Technical Improvements:**
-- 🏗️ **Modular Architecture**: Clean separation of simulation, rendering, and UI systems
-- ⚡ **Performance Optimization**: Better spatial hashing and thread management
-- 🛠️ **Code Quality**: Modern C++17 practices and improved error handling
-- 📱 **Cross-Platform**: Tested and verified on macOS, Linux, and Windows
+- **Modular Architecture**: Clean separation of simulation, rendering, and UI systems
+- **Performance Optimization**: Better spatial hashing and thread management
+- **Code Quality**: Modern C++17 practices and improved error handling
+- **Cross-Platform**: Tested and verified on macOS, Linux, and Windows
 
 **User Experience:**
-- 📖 **Comprehensive Documentation**: Updated README with detailed usage examples
-- 🎬 **Fresh Screenshots**: Complete visual documentation of all features
-- 🎮 **Intuitive Controls**: Clearer UI with context-sensitive instructions
-- 🚀 **Workflow Examples**: Step-by-step guides for common use cases
+- **Comprehensive Documentation**: Updated README with detailed usage examples
+- **Fresh Screenshots**: Complete visual documentation of all features
+- **Intuitive Controls**: Clearer UI with context-sensitive instructions
+- **Workflow Examples**: Step-by-step guides for common use cases
 
 ## License
 
