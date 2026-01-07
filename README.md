@@ -6,15 +6,12 @@ A sophisticated particle life simulation featuring emergent behavior, dynamic re
 
 ### Modern Interface with Enhanced Controls
 ![Modern Interface](ParticleLifeScreenshots/particle_life_20260107_114117_141.png)
-*Clean interface showing the new dual mouse mode system and particle controls*
 
 ### Interactive Particle Spawning & Force Dynamics
 ![Interactive Spawning](ParticleLifeScreenshots/particle_life_20260107_114151_397.png)
-*Demonstration of the new spawn mode with precise particle placement and interaction*
 
 ### Advanced Force Matrix & Visual Effects
 ![Advanced Features](ParticleLifeScreenshots/particle_life_20260107_114207_699.png)
-*Force matrix editor with complex particle interactions and visual trail effects*
 
 ## Features
 
