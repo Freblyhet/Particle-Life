@@ -60,8 +60,8 @@ public:
         float mouseX = -10.0f;
         float mouseY = -10.0f;
         bool mousePressed = false;
-        float mouseRadius = 0.3f;
-        float mouseForce = 0.005f;
+        float mouseRadius = 0.4f;
+        float mouseForce = 0.08f;
         
         // Interactive editing
         bool enableParticleSpawning = true;
@@ -158,7 +158,12 @@ public:
     void loadPreset(const std::string& name);
     
     // Simulation
-    void update();
+    void update(float deltaTime = 0.016f);
+    
+    // New methods for Qt interface
+    int getParticleCount() const { return particles.size(); }
+    void setNumTypes(int numTypes);
+    void applyMouseForce(float x, float y, float strength, float radius);
     
     // Mouse interaction
     void setMousePosition(float x, float y);

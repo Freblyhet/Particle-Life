@@ -25,13 +25,12 @@ private:
     bool showInteraction = false;
     
     // Modern panel rendering functions
-    void renderControlPanel();
+    void setupModernStyle();
+    void renderMainControlPanel();
+    void renderAdvancedSettingsPanel();
+    void renderQuickActionsPanel();
     void renderPerformanceHUD();
-    void renderVisualEffectsPanel();
-    void renderInteractionPanel();
-    void renderPresetsPanel();
     void renderForceMatrixPanel();
-    void renderColorLegendPanel();
     
     // Legacy functions (keeping for compatibility)
     void renderStatus();

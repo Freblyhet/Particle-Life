@@ -4,7 +4,21 @@
 #include <memory>
 #include <cmath>
 
-Renderer::Renderer() : VAO(0), VBO(0) {
+Renderer::Renderer() : VAO(0), VBO(0), shaderManager(nullptr) {
+    // Initialize color palette
+    colors = {
+        {1.0f, 0.2f, 0.2f},  // Red
+        {0.2f, 1.0f, 0.3f},  // Green
+        {0.3f, 0.5f, 1.0f},  // Blue
+        {1.0f, 0.9f, 0.2f},  // Yellow
+        {1.0f, 0.3f, 0.8f},  // Pink
+        {0.3f, 1.0f, 1.0f},  // Cyan
+        {1.0f, 0.6f, 0.2f},  // Orange
+        {0.7f, 0.3f, 1.0f},  // Purple
+    };
+}
+
+Renderer::Renderer(ShaderManager& shaderMgr) : VAO(0), VBO(0), shaderManager(&shaderMgr) {
     // Initialize color palette
     colors = {
         {1.0f, 0.2f, 0.2f},  // Red
@@ -23,8 +37,11 @@ Renderer::~Renderer() {
 }
 
 bool Renderer::initialize() {
-    // Create shader manager and compile shaders
-    shaderManager = std::make_unique<ShaderManager>();
+    // Create shader manager if we don't have one
+    if (!shaderManager) {
+        ownedShaderManager = std::make_unique<ShaderManager>();
+        shaderManager = ownedShaderManager.get();
+    }
     
     // Embedded shaders for particle rendering
     const std::string vertexShader = R"(
@@ -98,9 +115,10 @@ void Renderer::cleanup() {
         glDeleteBuffers(1, &VBO);
         VBO = 0;
     }
-    if (shaderManager) {
+    if (shaderManager && ownedShaderManager) {
         shaderManager->cleanup();
-        shaderManager.reset();
+        ownedShaderManager.reset();
+        shaderManager = nullptr;
     }
 }
 
@@ -185,4 +203,8 @@ void Renderer::renderParticles(const std::vector<Particle>& particles) {
     
     glBindVertexArray(VAO);
     glDrawArrays(GL_POINTS, 0, particles.size());
+}
+
+void Renderer::setViewport(int width, int height) {
+    glViewport(0, 0, width, height);
 }

@@ -11,6 +11,11 @@
 
 #include <iostream>
 #include <memory>
+#include <cstdlib>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+#include <filesystem>
 
 // Application constants
 const int SCREEN_WIDTH = 1400;
@@ -36,18 +41,72 @@ void mouseCallback(GLFWwindow* /*window*/, double x, double y) {
 void mouseButtonCallback(GLFWwindow* /*window*/, int button, int action, int /*mods*/) {
     if (!g_app.particleSystem) return;
     
-    if (button == GLFW_MOUSE_BUTTON_LEFT) {
-        g_app.particleSystem->setMousePressed(action == GLFW_PRESS);
+    auto& config = g_app.particleSystem->getConfig();
+    
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+        // Check mouse mode or particle count to determine behavior
+        if (config.mouseMode == 0 || g_app.particleSystem->getParticles().empty()) {
+            // Spawn mode or zero particles - spawn a single particle
+            std::cout << "🎯 Spawning single particle at mouse position..." << std::endl;
+            g_app.particleSystem->spawnParticlesAtMouse(1, config.spawnParticleType);
+        } else {
+            // Normal interaction mode - set mouse pressed for particle interaction
+            g_app.particleSystem->setMousePressed(true);
+        }
+    } else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+        if (config.mouseMode != 0 && !g_app.particleSystem->getParticles().empty()) {
+            g_app.particleSystem->setMousePressed(false);
+        }
     } else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
-        // Right click to spawn particles
-        auto& config = g_app.particleSystem->getConfig();
+        // Right click to spawn multiple particles
         if (config.enableParticleSpawning) {
+            std::cout << "🌟 Spawning " << config.spawnCount << " particles at mouse position..." << std::endl;
             g_app.particleSystem->spawnParticlesAtMouse(config.spawnCount, config.spawnParticleType);
         }
     } else if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS) {
         // Middle click to remove particles
-        auto& config = g_app.particleSystem->getConfig();
+        std::cout << "🗑️ Removing particles at mouse position..." << std::endl;
         g_app.particleSystem->removeParticlesAtMouse(config.mouseRadius);
+    }
+}
+
+// Screenshot functionality
+void takeScreenshot() {
+    // Create screenshots directory if it doesn't exist
+    std::filesystem::create_directories("../ParticleLifeScreenshots");
+    
+    // Generate timestamp for filename
+    auto now = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now.time_since_epoch()) % 1000;
+    
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S_");
+    ss << std::setfill('0') << std::setw(3) << ms.count();
+    
+    std::string filename = "../ParticleLifeScreenshots/particle_life_" + ss.str() + ".png";
+    
+    std::cout << "📸 Taking screenshot..." << std::endl;
+    
+    // Try focused window capture first
+    std::string command1 = "screencapture -w \"" + filename + "\" 2>/dev/null";
+    int result1 = std::system(command1.c_str());
+    
+    if (result1 == 0) {
+        std::cout << "📸 Screenshot saved: " << filename << std::endl;
+        return;
+    }
+    
+    // Fallback to interactive selection
+    std::cout << "⚠️  Auto-capture failed, opening selection mode..." << std::endl;
+    std::string fallback_command = "screencapture -i \"" + filename + "\" 2>/dev/null";
+    int result2 = std::system(fallback_command.c_str());
+    
+    if (result2 == 0) {
+        std::cout << "📸 Interactive screenshot saved: " << filename << std::endl;
+    } else {
+        std::cout << "❌ Screenshot failed - please use external screenshot tool" << std::endl;
     }
 }
 
@@ -57,8 +116,13 @@ void keyCallback(GLFWwindow* /*window*/, int key, int /*scancode*/, int action, 
         
         if (key == GLFW_KEY_SPACE) {
             config.paused = !config.paused;
+            std::cout << "⏸️ Pause toggled: " << (config.paused ? "PAUSED" : "RESUMED") << std::endl;
         } else if (key == GLFW_KEY_R) {
             g_app.particleSystem->resetSimulation(true);
+            std::cout << "🔄 Simulation reset" << std::endl;
+        } else if (key == GLFW_KEY_P) {
+            std::cout << "📸 P key pressed - taking screenshot..." << std::endl;
+            takeScreenshot();
         }
     }
 }

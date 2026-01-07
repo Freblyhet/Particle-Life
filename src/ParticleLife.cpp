@@ -10,6 +10,11 @@
 #include <random>
 #include <cmath>
 #include <unordered_map>
+#include <cstdlib>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+#include <filesystem>
 
 // Window
 const int SCREEN_WIDTH = 1400;
@@ -111,6 +116,15 @@ struct Simulation {
     bool mousePressed = false;
     float mouseRadius = 0.3f;
     float mouseForce = 0.005f;       // Reduced from 0.02
+    
+    // Screenshot notification
+    bool showScreenshotNotification = false;
+    float screenshotNotificationTime = 0.0f;
+    std::string screenshotMessage = "";
+    
+    // Startup timer
+    float startupTimer = 0.0f;
+    bool hasShownWelcome = false;
 } g_sim;
 
 // Colors
@@ -180,6 +194,8 @@ void randomizeForces() {
 // Create particles with BALANCED initial conditions
 void createParticles() {
     g_sim.particles.clear();
+    
+    std::cout << "🔧 Creating particles: " << g_sim.particlesPerType << " per type, " << g_sim.numTypes << " types" << std::endl;
     
     // Tighter clustering for more interaction
     std::uniform_real_distribution<float> posDist(-0.5f, 0.5f);  // Reduced from -0.8 to 0.8
@@ -420,6 +436,25 @@ void updateSimulation() {
     for (auto it = toRemove.rbegin(); it != toRemove.rend(); ++it) {
         g_sim.particles.erase(g_sim.particles.begin() + *it);
     }
+    
+    // Update startup timer and show welcome message
+    g_sim.startupTimer += 0.016f;
+    if (!g_sim.hasShownWelcome && g_sim.startupTimer > 2.0f) {
+        g_sim.hasShownWelcome = true;
+        g_sim.showScreenshotNotification = true;
+        g_sim.screenshotNotificationTime = 4.0f;
+        g_sim.screenshotMessage = "🚀 Particle Life Ready! Press P for screenshot";
+        std::cout << "📢 Welcome notification activated!" << std::endl;
+    }
+    
+    // Update screenshot notification timer
+    if (g_sim.showScreenshotNotification) {
+        g_sim.screenshotNotificationTime -= 0.016f; // Decrease by frame time
+        if (g_sim.screenshotNotificationTime <= 0.0f) {
+            g_sim.showScreenshotNotification = false;
+            std::cout << "📢 Notification hidden" << std::endl;
+        }
+    }
 }
 
 // OpenGL initialization
@@ -571,6 +606,22 @@ void renderGUI() {
     ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
     ImGui::Separator();
     
+    // ===== KEYBOARD SHORTCUTS =====
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.9f, 1.0f, 1.0f)); // Light blue
+    ImGui::Text("⌨️ Shortcuts:");
+    ImGui::PopStyleColor();
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Space=Pause | R=Reset | P=Screenshot");
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip(
+            "Keyboard Shortcuts:\n"
+            "• SPACE - Pause/Resume simulation\n"
+            "• R - Reset and randomize forces\n"
+            "• P - Take screenshot (saves to ParticleLifeScreenshots folder)"
+        );
+    }
+    ImGui::Separator();
+    
     // ===== MAIN CONTROLS =====
     if (ImGui::Button(g_sim.paused ? "▶ Resume" : "⏸ Pause", ImVec2(100, 0))) {
         g_sim.paused = !g_sim.paused;
@@ -612,13 +663,17 @@ void renderGUI() {
         static int newParticlesPerType = g_sim.particlesPerType;
         
         ImGui::SliderInt("Particle Types", &newNumTypes, 2, 8);
-        ImGui::SliderInt("Particles Per Type", &newParticlesPerType, 50, 500);
+        ImGui::SliderInt("Particles Per Type", &newParticlesPerType, 0, 500);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Set to 0 to create an empty simulation");
+        }
         
         bool changed = (newNumTypes != g_sim.numTypes || newParticlesPerType != g_sim.particlesPerType);
         
         if (changed) {
             ImGui::Spacing();
             if (ImGui::Button("✓ Apply & Reset", ImVec2(-1, 30))) {
+                std::cout << "🔄 Applying new settings: " << newNumTypes << " types, " << newParticlesPerType << " particles per type" << std::endl;
                 g_sim.numTypes = newNumTypes;
                 g_sim.particlesPerType = newParticlesPerType;
                 resetSimulation(false);
@@ -761,6 +816,64 @@ void renderGUI() {
     
     ImGui::End();
     
+    // Screenshot notification overlay
+    if (g_sim.showScreenshotNotification && !g_sim.screenshotMessage.empty()) {
+        std::cout << "🎨 Rendering notification: " << g_sim.screenshotMessage << " (time: " << g_sim.screenshotNotificationTime << ")" << std::endl;
+        ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+        if (displaySize.x > 0 && displaySize.y > 0) {
+            ImGui::SetNextWindowPos(ImVec2(displaySize.x * 0.5f - 150, 50), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(ImVec2(300, 0), ImGuiCond_Always);
+        
+        ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | 
+                                ImGuiWindowFlags_NoResize | 
+                                ImGuiWindowFlags_NoMove | 
+                                ImGuiWindowFlags_NoCollapse |
+                                ImGuiWindowFlags_NoScrollbar |
+                                ImGuiWindowFlags_AlwaysAutoResize;
+        
+        // Semi-transparent background
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.8f, 1.0f, 1.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 2.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20, 15));
+        
+        if (ImGui::Begin("Screenshot Notification", nullptr, flags)) {
+            // Animated colors based on time remaining
+            float alpha = ImGui::GetStyle().Alpha;
+            float timeRatio = g_sim.screenshotNotificationTime / 3.0f;
+            
+            // Fade out effect
+            if (timeRatio < 0.3f) {
+                alpha *= (timeRatio / 0.3f);
+            }
+            
+            ImVec4 textColor;
+            if (g_sim.screenshotMessage.find("failed") != std::string::npos || 
+                g_sim.screenshotMessage.find("❌") != std::string::npos) {
+                textColor = ImVec4(1.0f, 0.4f, 0.4f, alpha); // Red for errors
+            } else {
+                textColor = ImVec4(0.4f, 1.0f, 0.4f, alpha); // Green for success
+            }
+            
+            ImGui::PushStyleColor(ImGuiCol_Text, textColor);
+            
+            // Center the text
+            ImVec2 text_size = ImGui::CalcTextSize(g_sim.screenshotMessage.c_str());
+            ImVec2 window_size = ImGui::GetWindowSize();
+            ImGui::SetCursorPosX((window_size.x - text_size.x) * 0.5f);
+            
+            ImGui::Text("%s", g_sim.screenshotMessage.c_str());
+            
+            ImGui::PopStyleColor(1); // Text color
+        }
+        ImGui::End();
+        
+        ImGui::PopStyleVar(3); // Window padding, rounding, border
+        ImGui::PopStyleColor(2); // Window bg, border
+        }  // Close displaySize check
+    }  // Close notification check
+    
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
@@ -777,12 +890,79 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
     }
 }
 
+// Screenshot functionality
+void takeScreenshot() {
+    // Create screenshots directory if it doesn't exist
+    std::filesystem::create_directories("../ParticleLifeScreenshots");
+    
+    // Generate timestamp for filename
+    auto now = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now.time_since_epoch()) % 1000;
+    
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S_");
+    ss << std::setfill('0') << std::setw(3) << ms.count();
+    
+    std::string filename = "../ParticleLifeScreenshots/particle_life_" + ss.str() + ".png";
+    
+    std::cout << "📸 Taking screenshot..." << std::endl;
+    
+    // Try multiple approaches for window capture
+    // First: try to capture the focused window
+    std::string command1 = "screencapture -w \"" + filename + "\" 2>/dev/null";
+    int result1 = std::system(command1.c_str());
+    
+    if (result1 == 0) {
+        std::cout << "📸 Screenshot saved: " << filename << std::endl;
+        g_sim.showScreenshotNotification = true;
+        g_sim.screenshotNotificationTime = 3.0f; // Show for 3 seconds
+        g_sim.screenshotMessage = "📸 Screenshot saved!";
+        return;
+    }
+    
+    // Second: try to find ParticleLife process
+    std::string command2 = "screencapture -l$(osascript -e 'tell app \"System Events\" to id of first process whose name contains \"ParticleLife\"') \"" + filename + "\" 2>/dev/null";
+    int result2 = std::system(command2.c_str());
+    
+    if (result2 == 0) {
+        std::cout << "📸 Screenshot saved (process capture): " << filename << std::endl;
+        g_sim.showScreenshotNotification = true;
+        g_sim.screenshotNotificationTime = 3.0f;
+        g_sim.screenshotMessage = "📸 Screenshot captured!";
+        return;
+    }
+    
+    // Third: fallback to interactive selection
+    std::cout << "⚠️  Auto-capture failed, opening selection mode..." << std::endl;
+    std::string fallback_command = "screencapture -i \"" + filename + "\" 2>/dev/null";
+    int result3 = std::system(fallback_command.c_str());
+    
+    if (result3 == 0) {
+        std::cout << "📸 Screenshot saved (interactive): " << filename << std::endl;
+        g_sim.showScreenshotNotification = true;
+        g_sim.screenshotNotificationTime = 3.0f;
+        g_sim.screenshotMessage = "📸 Interactive screenshot saved!";
+    } else {
+        std::cout << "❌ Screenshot failed - please use external screenshot tool" << std::endl;
+        g_sim.showScreenshotNotification = true;
+        g_sim.screenshotNotificationTime = 3.0f;
+        g_sim.screenshotMessage = "❌ Screenshot failed - try external tool";
+    }
+}
+
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS) {
         if (key == GLFW_KEY_SPACE) {
             g_sim.paused = !g_sim.paused;
+            std::cout << "⏸️ Pause toggled: " << (g_sim.paused ? "PAUSED" : "RESUMED") << std::endl;
         } else if (key == GLFW_KEY_R) {
             resetSimulation(true);
+            std::cout << "🔄 Simulation reset" << std::endl;
+        } else if (key == GLFW_KEY_P) {
+            std::cout << "📸 P key pressed - taking screenshot..." << std::endl;
+            takeScreenshot();
         }
     }
 }
@@ -843,6 +1023,11 @@ int main() {
     
     // Initialize
     resetSimulation(true);
+    
+    // Don't show startup notification immediately - wait for first frame
+    // g_sim.showScreenshotNotification = true;
+    // g_sim.screenshotNotificationTime = 5.0f;
+    // g_sim.screenshotMessage = "🚀 Particle Life Ready! Press P for screenshot";
     
     std::cout << "\n=== Particle Life Simulation (BALANCED) ===" << std::endl;
     std::cout << "Started with " << g_sim.particles.size() << " particles" << std::endl;

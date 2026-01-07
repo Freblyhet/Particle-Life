@@ -38,7 +38,8 @@ public:
 
 private:
     GLuint VAO, VBO;
-    std::unique_ptr<ShaderManager> shaderManager;
+    std::unique_ptr<ShaderManager> ownedShaderManager;
+    ShaderManager* shaderManager;
     Config config;
     
     // Predefined color palette
@@ -46,6 +47,7 @@ private:
 
 public:
     Renderer();
+    Renderer(ShaderManager& shaderMgr);
     ~Renderer();
     
     bool initialize();
@@ -57,6 +59,9 @@ public:
     void setupFrame();
     void renderParticles(const std::vector<Particle>& particles);
     void present();
+    
+    // Viewport management
+    void setViewport(int width, int height);
     
     // Color utilities
     const std::vector<glm::vec3>& getColors() const { return colors; }

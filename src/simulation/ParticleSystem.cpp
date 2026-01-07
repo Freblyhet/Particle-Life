@@ -149,13 +149,13 @@ void ParticleSystem::loadPreset(const std::string& name) {
     std::cout << "Loaded preset: " << name << std::endl;
 }
 
-void ParticleSystem::update() {
+void ParticleSystem::update(float deltaTime) {
     if (config.paused) return;
     
     auto startTime = std::chrono::high_resolution_clock::now();
     metrics.reset();
     
-    const float dt = 0.016f * config.timeScale;
+    const float dt = deltaTime * config.timeScale;
     
     // Build spatial hash
     if (config.useSpatialHash) {
@@ -236,16 +236,20 @@ void ParticleSystem::update() {
             }
         }
         
-        // Mouse interaction
+        // Mouse interaction - Enhanced force
         if (config.mousePressed) {
             float dx = config.mouseX - particles[i].x;
             float dy = config.mouseY - particles[i].y;
             float dist = std::sqrt(dx * dx + dy * dy);
             
             if (dist < config.mouseRadius && dist > 0.001f) {
+                // Much stronger mouse force with better falloff
                 float strength = (1.0f - dist / config.mouseRadius);
-                fx[i] -= (dx / dist) * config.mouseForce * strength;
-                fy[i] -= (dy / dist) * config.mouseForce * strength;
+                float forceMagnitude = config.mouseForce * strength * strength; // Squared for stronger effect
+                
+                // Apply stronger attraction force toward mouse
+                fx[i] += (dx / dist) * forceMagnitude * 3.0f; // 3x multiplier for stronger effect
+                fy[i] += (dy / dist) * forceMagnitude * 3.0f;
             }
         }
     }
@@ -597,4 +601,34 @@ float ParticleSystem::getForce(int fromType, int toType) const {
         return forces[fromType][toType];
     }
     return 0.0f;
+}
+
+void ParticleSystem::setNumTypes(int numTypes) {
+    if (numTypes != config.numTypes && numTypes > 1 && numTypes <= 8) {
+        config.numTypes = numTypes;
+        resizeForceMatrix();
+        resetSimulation(false);
+    }
+}
+
+void ParticleSystem::applyMouseForce(float x, float y, float strength, float radius) {
+    for (auto& particle : particles) {
+        glm::vec2 delta = glm::vec2(x, y) - glm::vec2(particle.x, particle.y);
+        float dist = glm::length(delta);
+        
+        if (dist < radius && dist > 0.001f) {
+            // Much stronger mouse force with better physics
+            float falloff = (1.0f - dist / radius);
+            glm::vec2 force = glm::normalize(delta) * strength * falloff * falloff * 10.0f; // 10x stronger
+            particle.vx += force.x;
+            particle.vy += force.y;
+            
+            // Cap velocity to prevent particles from flying too fast
+            float speed = glm::length(glm::vec2(particle.vx, particle.vy));
+            if (speed > config.maxSpeed * 2.0f) { // Allow 2x normal max speed under mouse influence
+                particle.vx = (particle.vx / speed) * config.maxSpeed * 2.0f;
+                particle.vy = (particle.vy / speed) * config.maxSpeed * 2.0f;
+            }
+        }
+    }
 }
