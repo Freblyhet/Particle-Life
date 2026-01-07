@@ -2,7 +2,19 @@
 
 A sophisticated particle life simulation featuring emergent behavior, dynamic real-time controls, and modular architecture. Watch particles self-organize into complex patterns like swirling galaxies, flocking behaviors, and stable ecosystems.
 
+## Screenshots
+
 ![Particle Life Demo](ParticleLifeScreenshots/particle1.png)
+*Main simulation view showing particle interactions*
+
+![Force Matrix Editor](ParticleLifeScreenshots/particle2.png)
+*Interactive force matrix editor with color-coded sliders*
+
+![Dynamic Controls](ParticleLifeScreenshots/particle3.png)
+*Modern floating panel UI with real-time controls*
+
+![Emergent Patterns](ParticleLifeScreenshots/particle4.png)
+*Complex emergent patterns and behaviors*
 
 ## Features
 
@@ -29,8 +41,6 @@ A sophisticated particle life simulation featuring emergent behavior, dynamic re
 - Multi-threading support for parallel force calculations
 - Thread-safe operations for safe dynamic particle management
 - Modern C++17 practices and RAII resource management
-
-![Force Matrix Editor](ParticleLifeScreenshots/particle2.png)
 
 ## Installation
 
@@ -136,8 +146,6 @@ make -j$(nproc)
 ./ParticleLife.exe
 ```
 
-![Dynamic Controls](ParticleLifeScreenshots/particle3.png)
-
 ## Usage
 
 ### Basic Controls
@@ -161,8 +169,6 @@ make -j$(nproc)
 3. **Tune Forces Gradually**: Keep force matrix values between ±0.1 to ±0.4
 4. **Enable Threading**: Turn on multi-threading for >500 particles
 5. **Experiment**: Use the +100/-100 buttons to find sweet spots
-
-![Emergent Patterns](ParticleLifeScreenshots/particle4.png)
 
 ## Configuration
 
