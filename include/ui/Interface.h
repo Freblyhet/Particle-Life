@@ -19,12 +19,10 @@ private:
     
     // Panel visibility flags
     bool showForceMatrix = false;
-    bool showColorLegend = false;
     bool showControlPanel = true;
     bool showPerformanceHUD = true;
     bool showVisualEffects = false;
     bool showInteraction = false;
-    bool showPresets = false;
     
     // Modern panel rendering functions
     void renderControlPanel();

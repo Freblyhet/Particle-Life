@@ -23,7 +23,7 @@ void Interface::render() {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     
-    // *** MODERN FLOATING PANELS SYSTEM ***
+    // Floating panels system
     // This should replace the old slide menu completely
     renderControlPanel();
     renderPerformanceHUD();
@@ -43,36 +43,27 @@ void Interface::renderControlPanel() {
     ImGui::SetNextWindowBgAlpha(0.95f);
     
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse;
-    if (ImGui::Begin("🚀 NEW MODERN CONTROLS - SUCCESS!", &showControlPanel, flags)) {
-        // Make it obviously different from old menu
-        ImGui::TextColored(ImVec4(0, 1, 0, 1), "*** SUCCESS: FLOATING PANEL SYSTEM WORKING ***");
-        ImGui::Separator();
-        
-        ImGui::Text("🎉 The old slide menu has been REPLACED!");
-        ImGui::Text("🎨 This is the new modern floating interface!");
-        
-        ImGui::Separator();
-        
+    if (ImGui::Begin("Control Panel", &showControlPanel, flags)) {
         // Essential controls
         auto& config = particleSystem.getConfig();
         
-        ImGui::Text("🔄 Simulation");
-        if (ImGui::Button(config.isPaused ? "▶ Resume" : "⏸ Pause", ImVec2(120, 30))) {
+        ImGui::Text("Simulation");
+        if (ImGui::Button(config.isPaused ? "Resume" : "Pause", ImVec2(120, 30))) {
             config.isPaused = !config.isPaused;
         }
         
-        if (ImGui::Button("🎲 Reset", ImVec2(120, 30))) {
+        if (ImGui::Button("Reset", ImVec2(120, 30))) {
             particleSystem.reset();
         }
         
         ImGui::Separator();
-        ImGui::Text("⚡ Physics");
+        ImGui::Text("Physics");
         ImGui::SliderFloat("Speed", &config.maxSpeed, 0.001f, 0.05f, "%.3f");
         ImGui::SliderFloat("Force", &config.forceFactor, 0.1f, 2.0f, "%.1f");
         ImGui::SliderFloat("Friction", &config.friction, 0.9f, 0.999f, "%.3f");
         
         ImGui::Separator();
-        ImGui::Text("🧵 Multi-threading");
+        ImGui::Text("Multi-threading");
         ImGui::Checkbox("Enable Threading", &config.enableMultiThreading);
         if (config.enableMultiThreading) {
             ImGui::SliderInt("Thread Count", &config.numThreads, 0, 16);
@@ -84,14 +75,12 @@ void Interface::renderControlPanel() {
         }
         
         ImGui::Separator();
-        ImGui::Text("🎨 Visual Effects");
-        if (ImGui::Button("Show Visual Panel", ImVec2(150, 25))) {
+        ImGui::Text("Panels");
+        if (ImGui::Button("Show Visual Effects", ImVec2(150, 25))) {
             showVisualEffects = !showVisualEffects;
         }
         
-        ImGui::Separator();
-        ImGui::Text("⚛️ Particle & Forces");
-        if (ImGui::Button("Show Particle Panel", ImVec2(150, 25))) {
+        if (ImGui::Button("Show Particle Management", ImVec2(150, 25))) {
             showInteraction = !showInteraction;
         }
         ImGui::SameLine();
@@ -110,7 +99,7 @@ void Interface::renderPerformanceHUD() {
     ImGui::SetNextWindowBgAlpha(0.8f);
     
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
-    if (ImGui::Begin("📊 Performance", &showPerformanceHUD, flags)) {
+    if (ImGui::Begin("Performance", &showPerformanceHUD, flags)) {
         const auto& metrics = particleSystem.getPerformanceMetrics();
         const auto& particles = particleSystem.getParticles();
         
@@ -144,13 +133,13 @@ void Interface::renderVisualEffectsPanel() {
     ImGui::SetNextWindowSize(ImVec2(300, 400), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowBgAlpha(0.9f);
     
-    if (ImGui::Begin("🎨 Visual Effects Panel", &showVisualEffects)) {
+    if (ImGui::Begin("Visual Effects", &showVisualEffects)) {
         auto& renderConfig = renderer.getConfig();
         
-        ImGui::TextColored(ImVec4(1, 0.8f, 0.2f, 1), "🌟 Advanced Particle Effects");
+        ImGui::Text("Advanced Particle Effects");
         ImGui::Separator();
         
-        ImGui::Text("📏 Particle Sizing");
+        ImGui::Text("Particle Sizing");
         ImGui::SliderFloat("Base Size", &renderConfig.particleSize, 1.0f, 20.0f, "%.1f");
         ImGui::SliderFloat("Min Size", &renderConfig.minParticleSize, 0.5f, 8.0f, "%.1f");
         ImGui::Checkbox("Size by Speed", &renderConfig.sizeBySpeed);
@@ -159,7 +148,7 @@ void Interface::renderVisualEffectsPanel() {
         }
         
         ImGui::Separator();
-        ImGui::Text("✨ Dynamic Effects");
+        ImGui::Text("Dynamic Effects");
         ImGui::Checkbox("Enable Pulsation", &renderConfig.enablePulsation);
         if (renderConfig.enablePulsation) {
             ImGui::SliderFloat("Pulse Speed", &renderConfig.pulsationSpeed, 0.5f, 5.0f, "%.1f");
@@ -172,7 +161,7 @@ void Interface::renderVisualEffectsPanel() {
         }
         
         ImGui::Separator();
-        ImGui::Text("🎨 Color Schemes");
+        ImGui::Text("Color Schemes");
         ImGui::Checkbox("Velocity Colors", &renderConfig.useVelocityColors);
         if (!renderConfig.useVelocityColors) {
             ImGui::Checkbox("Type Colors", &renderConfig.useTypeColors);
@@ -180,7 +169,7 @@ void Interface::renderVisualEffectsPanel() {
         ImGui::Checkbox("Enable Glow", &renderConfig.enableGlow);
         
         ImGui::Separator();
-        ImGui::Text("🎭 Quick Presets");
+        ImGui::Text("Quick Presets");
         if (ImGui::Button("Minimal", ImVec2(90, 0))) {
             renderConfig.particleSize = 3.0f;
             renderConfig.enablePulsation = false;
@@ -208,7 +197,7 @@ void Interface::renderVisualEffectsPanel() {
         }
         
         ImGui::Separator();
-        ImGui::Text("⚙️ Rendering Options");
+        ImGui::Text("Rendering Options");
         ImGui::Checkbox("Show Grid", &renderConfig.showGrid);
         ImGui::Checkbox("Show Center", &renderConfig.showCenter);
     }
@@ -221,15 +210,15 @@ void Interface::renderInteractionPanel() {
     ImGui::SetNextWindowSize(ImVec2(320, 450), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowBgAlpha(0.9f);
     
-    if (ImGui::Begin("⚛️ Particle Management", &showInteraction)) {
+    if (ImGui::Begin("Particle Management", &showInteraction)) {
         auto& config = particleSystem.getConfig();
         int currentParticleCount = static_cast<int>(particleSystem.getParticles().size());
         
-        ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.8f, 1), "🎛️ Dynamic Particle Control");
+        ImGui::Text("Dynamic Particle Control");
         ImGui::Separator();
         
         // Particle count controls
-        ImGui::Text("📊 Particle Count: %d", currentParticleCount);
+        ImGui::Text("Particle Count: %d", currentParticleCount);
         
         static int targetCount = currentParticleCount;
         ImGui::SliderInt("Target Count", &targetCount, 0, 2000);
@@ -256,7 +245,7 @@ void Interface::renderInteractionPanel() {
         ImGui::Separator();
         
         // Particle type management
-        ImGui::Text("🎨 Particle Types: %d", config.numTypes);
+        ImGui::Text("Particle Types: %d", config.numTypes);
         
         static int targetTypes = config.numTypes;
         ImGui::SliderInt("Number of Types", &targetTypes, 1, 8);
@@ -272,7 +261,7 @@ void Interface::renderInteractionPanel() {
         ImGui::Separator();
         
         // Quick particle spawning
-        ImGui::Text("⚡ Quick Spawn");
+        ImGui::Text("Quick Spawn");
         static int spawnType = 0;
         ImGui::SliderInt("Spawn Type", &spawnType, 0, config.numTypes - 1);
         
@@ -294,7 +283,7 @@ void Interface::renderInteractionPanel() {
         ImGui::Separator();
         
         // Particle distribution by type
-        ImGui::Text("📈 Particle Distribution");
+        ImGui::Text("Particle Distribution");
         std::vector<int> typeCounts(config.numTypes, 0);
         for (const auto& particle : particleSystem.getParticles()) {
             if (particle.type >= 0 && particle.type < config.numTypes) {
@@ -309,7 +298,7 @@ void Interface::renderInteractionPanel() {
         ImGui::Separator();
         
         // Performance info
-        ImGui::Text("⚙️ Threading Info");
+        ImGui::Text("Threading Info");
         bool threadingActive = config.enableMultiThreading && 
                               currentParticleCount >= config.minParticlesForThreading;
         ImGui::TextColored(threadingActive ? ImVec4(0,1,0,1) : ImVec4(1,1,0,1), 
@@ -335,10 +324,10 @@ void Interface::renderForceMatrixPanel() {
     ImGui::SetNextWindowSize(ImVec2(400, 500), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowBgAlpha(0.9f);
     
-    if (ImGui::Begin("🌐 Force Matrix Editor", &showForceMatrix)) {
+    if (ImGui::Begin("Force Matrix Editor", &showForceMatrix)) {
         auto& config = particleSystem.getConfig();
         
-        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1), "🔗 Interaction Forces");
+        ImGui::Text("Interaction Forces");
         ImGui::Separator();
         
         ImGui::Text("Edit forces between particle types:");
@@ -385,9 +374,9 @@ void Interface::renderForceMatrixPanel() {
         ImGui::Spacing();
         
         // Quick presets
-        ImGui::Text("🎚️ Quick Presets:");
+        ImGui::Text("Quick Presets:");
         
-        if (ImGui::Button("🌟 Mutual Attraction", ImVec2(-1, 0))) {
+        if (ImGui::Button("Mutual Attraction", ImVec2(-1, 0))) {
             for (int i = 0; i < config.numTypes; ++i) {
                 for (int j = 0; j < config.numTypes; ++j) {
                     particleSystem.setForce(i, j, 0.5f);
@@ -395,7 +384,7 @@ void Interface::renderForceMatrixPanel() {
             }
         }
         
-        if (ImGui::Button("💥 Mutual Repulsion", ImVec2(-1, 0))) {
+        if (ImGui::Button("Mutual Repulsion", ImVec2(-1, 0))) {
             for (int i = 0; i < config.numTypes; ++i) {
                 for (int j = 0; j < config.numTypes; ++j) {
                     particleSystem.setForce(i, j, -0.5f);
@@ -403,7 +392,7 @@ void Interface::renderForceMatrixPanel() {
             }
         }
         
-        if (ImGui::Button("⚖️ Self-Repel Only", ImVec2(-1, 0))) {
+        if (ImGui::Button("Self-Repel Only", ImVec2(-1, 0))) {
             for (int i = 0; i < config.numTypes; ++i) {
                 for (int j = 0; j < config.numTypes; ++j) {
                     if (i == j) {
@@ -415,11 +404,11 @@ void Interface::renderForceMatrixPanel() {
             }
         }
         
-        if (ImGui::Button("🎲 Randomize All", ImVec2(-1, 0))) {
+        if (ImGui::Button("Randomize All", ImVec2(-1, 0))) {
             particleSystem.generateRandomForces();
         }
         
-        if (ImGui::Button("🔄 Reset to Zero", ImVec2(-1, 0))) {
+        if (ImGui::Button("Reset to Zero", ImVec2(-1, 0))) {
             for (int i = 0; i < config.numTypes; ++i) {
                 for (int j = 0; j < config.numTypes; ++j) {
                     particleSystem.setForce(i, j, 0.0f);
@@ -430,7 +419,7 @@ void Interface::renderForceMatrixPanel() {
         ImGui::Separator();
         
         // Visual force representation
-        ImGui::Text("📊 Force Matrix Visualization");
+        ImGui::Text("Force Matrix Visualization");
         
         ImDrawList* drawList = ImGui::GetWindowDrawList();
         ImVec2 canvasPos = ImGui::GetCursorScreenPos();
