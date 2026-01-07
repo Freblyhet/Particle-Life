@@ -1,10 +1,47 @@
+# Build directories
 /build
+/build-*
+/cmake-build-*
+
+# IDE and editor files
 /.vscode
-/glad
-/glfw
+/.vs
+/.idea
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Compiled binaries
 *.exe
 *.dll
 *.dylib
+*.so
+*.a
+ParticleLife
+
+# Object files
 *.o
 *.obj
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# Log files
 *.log
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# ImGui settings
+imgui.ini
