@@ -26,8 +26,12 @@ void Interface::render() {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     
-    // Render unified side panel
+    // Enhanced floating panels system with better organization
     renderMainControlPanel();
+    renderPerformanceHUD();
+    renderAdvancedSettingsPanel();
+    renderForceMatrixPanel();
+    renderQuickActionsPanel();
     
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -107,19 +111,11 @@ void Interface::setupModernStyle() {
 void Interface::renderMainControlPanel() {
     if (!showControlPanel) return;
     
-    // Constants for viewport layout (matching main.cpp)
-    const int SCREEN_WIDTH = 1400;
-    const int SCREEN_HEIGHT = 900;
-    const int SIDEBAR_WIDTH = 350;
-    const int VIEWPORT_WIDTH = SCREEN_WIDTH - SIDEBAR_WIDTH;
+    ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(380, 520), ImGuiCond_FirstUseEver);
     
-    // Create fixed side panel docked to the right
-    ImGui::SetNextWindowPos(ImVec2(VIEWPORT_WIDTH, 0), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(SIDEBAR_WIDTH, SCREEN_HEIGHT), ImGuiCond_Always);
-    
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | 
-                            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_MenuBar;
-    if (ImGui::Begin("Control Panel", &showControlPanel, flags)) {
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_MenuBar;
+    if (ImGui::Begin("Particle Life Control Center", &showControlPanel, flags)) {
         
         // Menu bar with quick actions
         if (ImGui::BeginMenuBar()) {
@@ -300,115 +296,6 @@ void Interface::renderMainControlPanel() {
             showInteraction = !showInteraction;
         }
     }
-    
-    // Integrated Performance Section
-    if (ImGui::CollapsingHeader("Performance Monitor", showPerformanceHUD ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-        const auto& metrics = particleSystem.getPerformanceMetrics();
-        const auto& particles = particleSystem.getParticles();
-        
-        float fps = metrics.averageFPS;
-        ImVec4 fpsColor = fps > 50 ? ImVec4(0,1,0,1) : fps > 30 ? ImVec4(1,1,0,1) : ImVec4(1,0,0,1);
-        
-        ImGui::TextColored(fpsColor, "FPS: %.1f", fps);
-        ImGui::Text("Particles: %zu", particles.size());
-        ImGui::Text("Update: %.2fms", metrics.updateTimeMs);
-        ImGui::Text("Render: %.2fms", metrics.renderTimeMs);
-    }
-    
-    // Integrated Visual Effects Section  
-    if (ImGui::CollapsingHeader("Visual Effects", showVisualEffects ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-        auto& renderConfig = renderer.getConfig();
-        
-        ImGui::PushItemWidth(-100);
-        
-        ImGui::Checkbox("Particle Trails", &renderConfig.enableTrails);
-        if (renderConfig.enableTrails) {
-            ImGui::SliderFloat("Trail Fade", &renderConfig.trailLength, 0.5f, 0.99f, "%.2f");
-            ImGui::SliderFloat("Trail Intensity", &renderConfig.trailIntensity, 0.1f, 1.0f, "%.2f");
-        }
-        
-        ImGui::Separator();
-        
-        ImGui::Checkbox("Particle Glow", &renderConfig.enableGlow);
-        ImGui::Checkbox("Color by Speed", &renderConfig.colorBySpeed);
-        if (renderConfig.colorBySpeed) {
-            ImGui::SliderFloat("Max Speed", &renderConfig.maxSpeed, 0.001f, 0.1f, "%.3f");
-        }
-        
-        ImGui::PopItemWidth();
-    }
-    
-    // Integrated Force Matrix Section
-    if (ImGui::CollapsingHeader("Force Matrix Editor", showForceMatrix ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-        auto& config = particleSystem.getConfig();
-        
-        ImGui::Text("Edit forces between particle types:");
-        ImGui::Text("Positive = Attraction, Negative = Repulsion");
-        ImGui::Separator();
-        
-        // Force matrix grid
-        for (int from = 0; from < config.numTypes; ++from) {
-            ImGui::Text("Type %d Forces:", from);
-            ImGui::Indent();
-            
-            for (int to = 0; to < config.numTypes; ++to) {
-                ImGui::PushID(from * 10 + to);
-                
-                float force = particleSystem.getForce(from, to);
-                ImGui::PushItemWidth(60);
-                if (ImGui::SliderFloat(("##force_" + std::to_string(from) + "_" + std::to_string(to)).c_str(), 
-                                     &force, -1.0f, 1.0f, "%.2f")) {
-                    particleSystem.setForce(from, to, force);
-                }
-                ImGui::PopItemWidth();
-                
-                ImGui::SameLine();
-                ImGui::Text("→ Type %d", to);
-                
-                ImGui::PopID();
-            }
-            
-            ImGui::Unindent();
-        }
-    }
-    
-    // Integrated Quick Presets Section
-    if (ImGui::CollapsingHeader("Quick Presets", showInteraction ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-        auto& config = particleSystem.getConfig();
-        ImVec2 buttonSize(ImGui::GetContentRegionAvail().x * 0.48f, 25);
-        
-        if (ImGui::Button("Life Pattern", buttonSize)) {
-            for (int i = 0; i < config.numTypes; ++i) {
-                for (int j = 0; j < config.numTypes; ++j) {
-                    if (i == j) {
-                        particleSystem.setForce(i, j, -0.4f);
-                    } else if (abs(i - j) == 1 || (i == 0 && j == config.numTypes - 1) || 
-                              (i == config.numTypes - 1 && j == 0)) {
-                        particleSystem.setForce(i, j, 0.3f);
-                    } else {
-                        particleSystem.setForce(i, j, -0.1f);
-                    }
-                }
-            }
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Random", buttonSize)) {
-            particleSystem.generateRandomForces();
-        }
-        
-        if (ImGui::Button("Reset All", buttonSize)) {
-            particleSystem.reset();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Clear Forces", buttonSize)) {
-            for (int i = 0; i < config.numTypes; ++i) {
-                for (int j = 0; j < config.numTypes; ++j) {
-                    particleSystem.setForce(i, j, 0.0f);
-                }
-            }
-        }
-    }
-    
     ImGui::End();
 }
 
