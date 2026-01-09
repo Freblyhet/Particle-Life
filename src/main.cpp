@@ -21,8 +21,13 @@
 const int SCREEN_WIDTH = 1400;
 const int SCREEN_HEIGHT = 900;
 const int SIDEBAR_WIDTH = 350;  // Width of the side panel
-const int VIEWPORT_WIDTH = SCREEN_WIDTH - SIDEBAR_WIDTH;
-const int VIEWPORT_HEIGHT = SCREEN_HEIGHT;
+
+static void getSizes(GLFWwindow* window, int& fbW, int& fbH, int& viewportW, int& viewportH) {
+    // Use framebuffer size (in pixels) so HiDPI and window resizing behave correctly.
+    glfwGetFramebufferSize(window, &fbW, &fbH);
+    viewportW = std::max(1, fbW - SIDEBAR_WIDTH);
+    viewportH = std::max(1, fbH);
+}
 
 // Global application state
 struct AppState {
@@ -36,13 +41,16 @@ struct AppState {
 void mouseCallback(GLFWwindow* /*window*/, double x, double y) {
     if (g_app.particleSystem) {
         // Only handle mouse input in the simulation viewport (left side)
-        if (x >= VIEWPORT_WIDTH) {
+        int fbW = 0, fbH = 0, viewportW = 0, viewportH = 0;
+        getSizes(g_app.window, fbW, fbH, viewportW, viewportH);
+
+        if (x >= viewportW) {
             return; // Ignore mouse in side panel area
         }
         
         // Convert to viewport coordinates
-        float mouseX = (2.0f * x) / VIEWPORT_WIDTH - 1.0f;
-        float mouseY = 1.0f - (2.0f * y) / VIEWPORT_HEIGHT;
+        float mouseX = (2.0f * static_cast<float>(x)) / static_cast<float>(viewportW) - 1.0f;
+        float mouseY = 1.0f - (2.0f * static_cast<float>(y)) / static_cast<float>(viewportH);
         g_app.particleSystem->setMousePosition(mouseX, mouseY);
     }
 }
@@ -181,8 +189,78 @@ bool initializeImGui() {
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     
-    // Setup Dear ImGui style
+    // Modern dark theme with improved colors and spacing
     ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+    
+    // Modern rounded corners
+    style.WindowRounding = 8.0f;
+    style.ChildRounding = 6.0f;
+    style.FrameRounding = 5.0f;
+    style.PopupRounding = 6.0f;
+    style.ScrollbarRounding = 6.0f;
+    style.GrabRounding = 5.0f;
+    style.TabRounding = 6.0f;
+    
+    // Improved spacing
+    style.WindowPadding = ImVec2(12, 12);
+    style.FramePadding = ImVec2(8, 4);
+    style.ItemSpacing = ImVec2(8, 6);
+    style.ItemInnerSpacing = ImVec2(6, 4);
+    style.IndentSpacing = 20.0f;
+    style.ScrollbarSize = 16.0f;
+    style.GrabMinSize = 12.0f;
+    
+    // Modern color scheme
+    ImVec4* colors = style.Colors;
+    colors[ImGuiCol_Text]                   = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
+    colors[ImGuiCol_TextDisabled]           = ImVec4(0.36f, 0.42f, 0.47f, 1.00f);
+    colors[ImGuiCol_WindowBg]               = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
+    colors[ImGuiCol_ChildBg]                = ImVec4(0.15f, 0.18f, 0.22f, 1.00f);
+    colors[ImGuiCol_PopupBg]                = ImVec4(0.08f, 0.08f, 0.08f, 0.94f);
+    colors[ImGuiCol_Border]                 = ImVec4(0.08f, 0.10f, 0.12f, 1.00f);
+    colors[ImGuiCol_BorderShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_FrameBg]                = ImVec4(0.20f, 0.25f, 0.29f, 1.00f);
+    colors[ImGuiCol_FrameBgHovered]         = ImVec4(0.12f, 0.20f, 0.28f, 1.00f);
+    colors[ImGuiCol_FrameBgActive]          = ImVec4(0.09f, 0.12f, 0.14f, 1.00f);
+    colors[ImGuiCol_TitleBg]                = ImVec4(0.09f, 0.12f, 0.14f, 0.65f);
+    colors[ImGuiCol_TitleBgActive]          = ImVec4(0.08f, 0.10f, 0.12f, 1.00f);
+    colors[ImGuiCol_TitleBgCollapsed]       = ImVec4(0.00f, 0.00f, 0.00f, 0.51f);
+    colors[ImGuiCol_MenuBarBg]              = ImVec4(0.15f, 0.18f, 0.22f, 1.00f);
+    colors[ImGuiCol_ScrollbarBg]            = ImVec4(0.02f, 0.02f, 0.02f, 0.39f);
+    colors[ImGuiCol_ScrollbarGrab]          = ImVec4(0.20f, 0.25f, 0.29f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered]   = ImVec4(0.18f, 0.22f, 0.25f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive]    = ImVec4(0.09f, 0.21f, 0.31f, 1.00f);
+    colors[ImGuiCol_CheckMark]              = ImVec4(0.28f, 0.56f, 1.00f, 1.00f);
+    colors[ImGuiCol_SliderGrab]             = ImVec4(0.28f, 0.56f, 1.00f, 1.00f);
+    colors[ImGuiCol_SliderGrabActive]       = ImVec4(0.37f, 0.61f, 1.00f, 1.00f);
+    colors[ImGuiCol_Button]                 = ImVec4(0.20f, 0.25f, 0.29f, 1.00f);
+    colors[ImGuiCol_ButtonHovered]          = ImVec4(0.28f, 0.56f, 1.00f, 1.00f);
+    colors[ImGuiCol_ButtonActive]           = ImVec4(0.06f, 0.53f, 0.98f, 1.00f);
+    colors[ImGuiCol_Header]                 = ImVec4(0.20f, 0.25f, 0.29f, 0.55f);
+    colors[ImGuiCol_HeaderHovered]          = ImVec4(0.26f, 0.59f, 0.98f, 0.80f);
+    colors[ImGuiCol_HeaderActive]           = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
+    colors[ImGuiCol_Separator]              = ImVec4(0.20f, 0.25f, 0.29f, 1.00f);
+    colors[ImGuiCol_SeparatorHovered]       = ImVec4(0.10f, 0.40f, 0.75f, 0.78f);
+    colors[ImGuiCol_SeparatorActive]        = ImVec4(0.10f, 0.40f, 0.75f, 1.00f);
+    colors[ImGuiCol_ResizeGrip]             = ImVec4(0.26f, 0.59f, 0.98f, 0.25f);
+    colors[ImGuiCol_ResizeGripHovered]      = ImVec4(0.26f, 0.59f, 0.98f, 0.67f);
+    colors[ImGuiCol_ResizeGripActive]       = ImVec4(0.26f, 0.59f, 0.98f, 0.95f);
+    colors[ImGuiCol_Tab]                    = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
+    colors[ImGuiCol_TabHovered]             = ImVec4(0.26f, 0.59f, 0.98f, 0.80f);
+    colors[ImGuiCol_TabActive]              = ImVec4(0.20f, 0.25f, 0.29f, 1.00f);
+    colors[ImGuiCol_TabUnfocused]           = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
+    colors[ImGuiCol_TabUnfocusedActive]     = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
+    colors[ImGuiCol_PlotLines]              = ImVec4(0.61f, 0.61f, 0.61f, 1.00f);
+    colors[ImGuiCol_PlotLinesHovered]       = ImVec4(1.00f, 0.43f, 0.35f, 1.00f);
+    colors[ImGuiCol_PlotHistogram]          = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
+    colors[ImGuiCol_PlotHistogramHovered]   = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
+    colors[ImGuiCol_TextSelectedBg]         = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
+    colors[ImGuiCol_DragDropTarget]         = ImVec4(1.00f, 1.00f, 0.00f, 0.90f);
+    colors[ImGuiCol_NavHighlight]           = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
+    colors[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
+    colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
+    colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
     
     // Setup Platform/Renderer backends
     if (!ImGui_ImplGlfw_InitForOpenGL(g_app.window, true)) {
@@ -288,16 +366,20 @@ int main() {
     while (!glfwWindowShouldClose(g_app.window)) {
         // Update simulation
         g_app.particleSystem->update();
-        
+
+        // Use the actual framebuffer size (windowed mode + HiDPI safe).
+        int fbW = 0, fbH = 0, viewportW = 0, viewportH = 0;
+        getSizes(g_app.window, fbW, fbH, viewportW, viewportH);
+
         // Set viewport to simulation area only (left side)
-        glViewport(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
+        glViewport(0, 0, viewportW, viewportH);
         
         // Render frame
         g_app.renderer->setupFrame();
         g_app.renderer->renderParticles(g_app.particleSystem->getParticles());
         
         // Reset viewport for ImGui rendering
-        glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+        glViewport(0, 0, fbW, fbH);
         
         // Render UI
         g_app.interface->render();

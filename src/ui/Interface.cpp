@@ -1,6 +1,7 @@
 #include "ui/Interface.h"
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
+#include <algorithm>
 #include <iostream>
 
 Interface::Interface(ParticleSystem& ps, Renderer& r) 
@@ -106,16 +107,18 @@ void Interface::setupModernStyle() {
 
 void Interface::renderMainControlPanel() {
     if (!showControlPanel) return;
-    
-    // Constants for viewport layout (matching main.cpp)
-    const int SCREEN_WIDTH = 1400;
-    const int SCREEN_HEIGHT = 900;
-    const int SIDEBAR_WIDTH = 350;
-    const int VIEWPORT_WIDTH = SCREEN_WIDTH - SIDEBAR_WIDTH;
-    
+
+    // Size/position the panel based on the *current* display size.
+    // This keeps the panel docked to the right in windowed mode and on HiDPI screens.
+    const float sidebarWidth = 350.0f;
+    ImGuiIO& io = ImGui::GetIO();
+    const float screenW = io.DisplaySize.x;
+    const float screenH = io.DisplaySize.y;
+    const float viewportW = std::max(1.0f, screenW - sidebarWidth);
+
     // Create fixed side panel docked to the right
-    ImGui::SetNextWindowPos(ImVec2(VIEWPORT_WIDTH, 0), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(SIDEBAR_WIDTH, SCREEN_HEIGHT), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(viewportW, 0.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(sidebarWidth, screenH), ImGuiCond_Always);
     
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | 
                             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_MenuBar;
