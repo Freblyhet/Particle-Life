@@ -25,12 +25,12 @@ add_executable(ParticleLife
     src/ui/Interface.cpp
     
     # ImGui
-    external/imgui/imgui.cpp
-    external/imgui/imgui_draw.cpp
-    external/imgui/imgui_widgets.cpp
-    external/imgui/imgui_tables.cpp
-    external/imgui/backends/imgui_impl_glfw.cpp
-    external/imgui/backends/imgui_impl_opengl3.cpp
+    libs/imgui/imgui.cpp
+    libs/imgui/imgui_draw.cpp
+    libs/imgui/imgui_widgets.cpp
+    libs/imgui/imgui_tables.cpp
+    libs/imgui/backends/imgui_impl_glfw.cpp
+    libs/imgui/backends/imgui_impl_opengl3.cpp
 )
 
 # Include directories
@@ -38,8 +38,8 @@ target_include_directories(ParticleLife PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/glad
     ${CMAKE_CURRENT_SOURCE_DIR}/include/KHR
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui/backends
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/imgui/backends
 )
 
 # Find GLM (header-only library)
@@ -53,7 +53,7 @@ find_path(GLM_INCLUDE_DIR glm/glm.hpp
 if(GLM_INCLUDE_DIR)
     target_include_directories(ParticleLife PRIVATE ${GLM_INCLUDE_DIR})
 else()
-    message(WARNING "GLM not found. Make sure it's installed or available in external/")
+    message(WARNING "GLM not found. Make sure it's installed or available in libs/")
 endif()
 
 # Link libraries
