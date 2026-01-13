@@ -5,6 +5,14 @@ project(ParticleLife)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Enable aggressive optimizations and vectorization
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -ffast-math -funroll-loops")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
+
 # Find packages
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
@@ -31,15 +39,19 @@ add_executable(ParticleLife
     libs/imgui/imgui_tables.cpp
     libs/imgui/backends/imgui_impl_glfw.cpp
     libs/imgui/backends/imgui_impl_opengl3.cpp
+
+    # stb_image_write
+    libs/stb_image_write.cpp
 )
 
 # Include directories
 target_include_directories(ParticleLife PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/glad
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/KHR
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/imgui
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/imgui/backends
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/libs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/glad"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/KHR"
+    "${CMAKE_CURRENT_SOURCE_DIR}/libs/imgui"
+    "${CMAKE_CURRENT_SOURCE_DIR}/libs/imgui/backends"
 )
 
 # Find GLM (header-only library)

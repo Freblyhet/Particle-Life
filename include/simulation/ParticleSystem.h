@@ -6,10 +6,6 @@
 #include <random>
 #include <glm/glm.hpp>
 #include <chrono>
-#include <thread>
-#include <mutex>
-#include <atomic>
-#include <future>
 
 class ParticleSystem {
 public:
@@ -43,14 +39,8 @@ public:
         // Boundary mode
         BoundaryMode boundaryMode = BOUNCE;
         
-        // Advanced features
-        bool enableGravity = false;
-        float gravityStrength = 0.0f;
-        glm::vec2 gravityCenter{0.0f, 0.0f};
-        
-        bool enableVortex = false;
-        float vortexStrength = 0.0f;
-        glm::vec2 vortexCenter{0.0f, 0.0f};
+        // Advanced features removed for simplicity
+
         
         // State
         bool paused = false;
@@ -60,31 +50,16 @@ public:
         float mouseX = -10.0f;
         float mouseY = -10.0f;
         bool mousePressed = false;
-        float mouseRadius = 0.4f;
-        float mouseForce = 0.08f;
+        // Simplified mouse parameters
+        float mouseRadius = 0.25f;
+        float mouseForce = 0.1f;
         
         // Interactive editing
         bool enableParticleSpawning = true;
         int spawnParticleType = 0;
         float spawnRadius = 0.1f;
         int spawnCount = 5;
-        float removeRadius = 50.0f;
-        int mouseMode = 0; // 0 = spawn, 1 = remove
-        
-        // Physics scaling
-        float forceScale = 1.0f;
-        
-        // World bounds (for UI display)
-        float worldWidth = 800.0f;
-        float worldHeight = 600.0f;
-        
-        // Multi-threading configuration
-        bool enableMultiThreading = true;
-        int numThreads = 0; // 0 = auto-detect hardware threads
-        int minParticlesForThreading = 100; // Don't use threading below this count
-        
-        // Renamed for better UX
-        bool isPaused = false; // Better than 'paused' for checkbox logic
+        int mouseMode = 0; // 0 = spawn, 1 = interact
     };
 
 private:
@@ -98,24 +73,13 @@ private:
     // Performance tracking
     std::chrono::high_resolution_clock::time_point lastUpdateTime;
     std::vector<float> fpsHistory;
-    const size_t maxFpsHistory = 60; // Keep 1 second of history at 60 FPS
-
-    // Multi-threading support
-    int hardwareThreads;
-    std::atomic<int> activeThreads{0};
-    
-    // Thread synchronization
-    std::mutex particleMutex;
+    const size_t maxFpsHistory = 60;
 
     // Helper functions
     float wrapCoord(float x) const;
     glm::vec2 getWrappedDelta(const glm::vec2& from, const glm::vec2& to) const;
     float calculateForce(float dist, float attraction) const;
     
-    // Multi-threaded force calculation helpers
-    void calculateForcesForRange(size_t start, size_t end);
-    void updatePositionsForRange(size_t start, size_t end);
-
 public:
     ParticleSystem();
     ~ParticleSystem() = default;
@@ -126,29 +90,24 @@ public:
     
     // Performance metrics
     const PerformanceMetrics& getMetrics() const { return metrics; }
-    const PerformanceMetrics& getPerformanceMetrics() const { return metrics; } // Alias for UI
     
     // Force matrix management
     std::vector<std::vector<float>>& getForces() { return forces; }
     const std::vector<std::vector<float>>& getForces() const { return forces; }
-    std::vector<std::vector<float>>& getForceMatrix() { return forces; } // Alias for UI
-    const std::vector<std::vector<float>>& getForceMatrix() const { return forces; } // Alias for UI
     void randomizeForces();
-    void generateRandomForces() { randomizeForces(); } // Alias for UI
     void resizeForceMatrix();
     
     // Particle management
     const std::vector<Particle>& getParticles() const { return particles; }
-    std::vector<Particle>& getParticles() { return particles; } // Non-const version for UI
+    std::vector<Particle>& getParticles() { return particles; }
     void createParticles();
-    void reset() { resetSimulation(true); } // Alias for UI
     void resetSimulation(bool randomForces = false);
     
     // Dynamic particle management
     void addParticles(int count, int type = -1); // -1 = random type
     void removeParticles(int count);
     void setParticleCount(int totalCount);
-    void setParticleTypes(int numTypes);
+    void setNumTypes(int numTypes);
     
     // Force matrix utilities
     void setForce(int fromType, int toType, float force);
@@ -158,12 +117,10 @@ public:
     void loadPreset(const std::string& name);
     
     // Simulation
-    void update(float deltaTime = 0.016f);
+    void update(float deltaTime);
     
-    // New methods for Qt interface
+    // Utility methods
     int getParticleCount() const { return particles.size(); }
-    void setNumTypes(int numTypes);
-    void applyMouseForce(float x, float y, float strength, float radius);
     
     // Mouse interaction
     void setMousePosition(float x, float y);

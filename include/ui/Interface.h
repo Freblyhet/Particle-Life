@@ -32,6 +32,9 @@ private:
     void renderPerformanceHUD();
     void renderForceMatrixPanel();
     
+    // Helper function for particle type colors
+    ImVec4 getParticleTypeColor(int type, int totalTypes);
+    
     // Legacy functions (keeping for compatibility)
     void renderStatus();
     void renderMainControls();

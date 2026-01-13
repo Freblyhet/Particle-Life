@@ -22,14 +22,11 @@ public:
         bool sizeBySpeed = false;
         float minParticleSize = 4.0f;
         float maxParticleSize = 16.0f;
-        bool pulsateParticles = false;
-        float pulsateSpeed = 2.0f;
-        
-        // New visual effects for modern UI
         bool enablePulsation = false;
         float pulsationSpeed = 2.0f;
         float pulsationAmount = 0.3f;
-        float trailLength = 0.9f;
+        
+        // Visual helpers
         bool showGrid = false;
         bool showCenter = false;
         bool useTypeColors = true;

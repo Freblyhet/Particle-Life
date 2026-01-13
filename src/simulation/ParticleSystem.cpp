@@ -10,15 +10,9 @@
 ParticleSystem::ParticleSystem() : spatialHash(0.3f) {
     rng.seed(std::random_device{}());
     
-    // Initialize multi-threading
-    hardwareThreads = std::thread::hardware_concurrency();
-    if (hardwareThreads == 0) hardwareThreads = 4; // fallback
-    
     resizeForceMatrix();
     createParticles();
     lastUpdateTime = std::chrono::high_resolution_clock::now();
-    
-    std::cout << "ParticleSystem initialized with " << hardwareThreads << " hardware threads detected" << std::endl;
 }
 
 float ParticleSystem::wrapCoord(float x) const {
@@ -155,7 +149,10 @@ void ParticleSystem::update(float deltaTime) {
     auto startTime = std::chrono::high_resolution_clock::now();
     metrics.reset();
     
-    const float dt = deltaTime * config.timeScale;
+    // Convert real time to normalized simulation time
+    // The simulation was designed with dt=1.0 representing one frame at 60fps
+    const float targetFrameTime = 1.0f / 60.0f;  // 0.01667 seconds
+    const float dt = (deltaTime / targetFrameTime) * config.timeScale;
     
     // Build spatial hash
     if (config.useSpatialHash) {
@@ -169,109 +166,215 @@ void ParticleSystem::update(float deltaTime) {
     std::vector<float> fx(particles.size(), 0.0f);
     std::vector<float> fy(particles.size(), 0.0f);
     
-    for (size_t i = 0; i < particles.size(); ++i) {
-        std::vector<int> neighbors;
-        
-        if (config.useSpatialHash) {
-            neighbors = spatialHash.query(particles[i].x, particles[i].y, config.interactionRadius);
-            metrics.spatialQueries++;
-        } else {
-            neighbors.resize(particles.size());
-            for (size_t j = 0; j < particles.size(); ++j) {
-                neighbors[j] = j;
-            }
-        }
-        
-        // Particle interactions
-        for (int j : neighbors) {
-            if (i == static_cast<size_t>(j)) continue;
+    const size_t n = particles.size();
+    const float radiusSq = config.interactionRadius * config.interactionRadius;
+    const float invRadius = 1.0f / config.interactionRadius;
+    const float forceFactor = config.forceFactor;
+    
+    // Only use parallel processing for larger particle counts
+    const bool useParallel = (n > 200);
+    
+    // Process particles - only parallelize if beneficial
+    if (useParallel) {
+        #pragma omp parallel for schedule(dynamic, 64)
+        for (size_t i = 0; i < n; ++i) {
+            // Thread-local neighbor buffer (each thread gets its own)
+            std::vector<int> neighbors;
+            neighbors.reserve(100);
             
-            glm::vec2 delta;
-            if (config.boundaryMode == WRAP) {
-                delta = getWrappedDelta(
-                    glm::vec2(particles[i].x, particles[i].y),
-                    glm::vec2(particles[j].x, particles[j].y)
-                );
+            const float px = particles[i].x;
+            const float py = particles[i].y;
+            const int ptype = particles[i].type;
+            
+            if (config.useSpatialHash) {
+                spatialHash.queryInto(px, py, config.interactionRadius, neighbors);
+                #pragma omp atomic
+                metrics.spatialQueries++;
             } else {
-                delta = glm::vec2(
-                    particles[j].x - particles[i].x,
-                    particles[j].y - particles[i].y
-                );
+                // Brute force: check all particles
+                neighbors.reserve(n);
+                for (size_t j = 0; j < n; ++j) {
+                    neighbors.push_back(j);
+                }
             }
             
-            float dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+            float force_x = 0.0f;
+            float force_y = 0.0f;
             
-            if (dist > 0.001f && dist < config.interactionRadius) {
-                float normDist = dist / config.interactionRadius;
-                float attraction = forces[particles[i].type][particles[j].type];
-                float force = calculateForce(normDist, attraction) * config.forceFactor;
+            // Vectorized inner loop - compiler can auto-vectorize this
+            for (size_t idx = 0; idx < neighbors.size(); ++idx) {
+                const int j = neighbors[idx];
+                if (i == static_cast<size_t>(j)) continue;
                 
-                fx[i] += (delta.x / dist) * force;
-                fy[i] += (delta.y / dist) * force;
-                metrics.forceCalculations++;
-            }
-        }
-        
-        // Gravity effect
-        if (config.enableGravity) {
-            glm::vec2 toCenter(config.gravityCenter.x - particles[i].x,
-                              config.gravityCenter.y - particles[i].y);
-            float dist = std::sqrt(toCenter.x * toCenter.x + toCenter.y * toCenter.y);
-            if (dist > 0.001f) {
-                float gravForce = config.gravityStrength / (dist * dist + 0.1f);
-                fx[i] += (toCenter.x / dist) * gravForce;
-                fy[i] += (toCenter.y / dist) * gravForce;
-            }
-        }
-        
-        // Vortex effect
-        if (config.enableVortex) {
-            glm::vec2 toCenter(config.vortexCenter.x - particles[i].x,
-                              config.vortexCenter.y - particles[i].y);
-            float dist = std::sqrt(toCenter.x * toCenter.x + toCenter.y * toCenter.y);
-            if (dist > 0.001f) {
-                float vortexForce = config.vortexStrength / (dist + 0.1f);
-                fx[i] += (-toCenter.y / dist) * vortexForce;
-                fy[i] += (toCenter.x / dist) * vortexForce;
-            }
-        }
-        
-        // Mouse interaction - Enhanced force
-        if (config.mousePressed) {
-            float dx = config.mouseX - particles[i].x;
-            float dy = config.mouseY - particles[i].y;
-            float dist = std::sqrt(dx * dx + dy * dy);
-            
-            if (dist < config.mouseRadius && dist > 0.001f) {
-                // Much stronger mouse force with better falloff
-                float strength = (1.0f - dist / config.mouseRadius);
-                float forceMagnitude = config.mouseForce * strength * strength; // Squared for stronger effect
+                // Calculate delta (vectorizable)
+                float dx, dy;
+                if (config.boundaryMode == WRAP) {
+                    dx = particles[j].x - px;
+                    dy = particles[j].y - py;
+                    // Wrap handling
+                    if (dx > 0.5f) dx -= 1.0f;
+                    else if (dx < -0.5f) dx += 1.0f;
+                    if (dy > 0.5f) dy -= 1.0f;
+                    else if (dy < -0.5f) dy += 1.0f;
+                } else {
+                    dx = particles[j].x - px;
+                    dy = particles[j].y - py;
+                }
                 
-                // Apply stronger attraction force toward mouse
-                fx[i] += (dx / dist) * forceMagnitude * 3.0f; // 3x multiplier for stronger effect
-                fy[i] += (dy / dist) * forceMagnitude * 3.0f;
+                const float distSq = dx * dx + dy * dy;
+                
+                // Branchless distance check using masking
+                const bool inRange = (distSq > 0.00001f) && (distSq < radiusSq);
+                if (inRange) {
+                    const float invDist = 1.0f / std::sqrt(distSq);
+                    const float dist = distSq * invDist;
+                    const float normDist = dist * invRadius;
+                    
+                    const float attraction = forces[ptype][particles[j].type];
+                    const float force = calculateForce(normDist, attraction) * forceFactor;
+                    
+                    force_x += dx * invDist * force;
+                    force_y += dy * invDist * force;
+                    
+                    #pragma omp atomic
+                    metrics.forceCalculations++;
+                }
             }
+            
+            // Mouse interaction (done serially, not in parallel section)
+            if (config.mousePressed) {
+                const float dx = config.mouseX - px;
+                const float dy = config.mouseY - py;
+                const float distSq = dx * dx + dy * dy;
+                const float mouseRadiusSq = config.mouseRadius * config.mouseRadius;
+                
+                if (distSq < mouseRadiusSq && distSq > 0.00001f) {
+                    const float invDist = 1.0f / std::sqrt(distSq);
+                    const float dist = distSq * invDist;
+                    const float strength = (1.0f - dist / config.mouseRadius);
+                    const float forceMagnitude = config.mouseForce * strength * invDist;
+                    
+                    force_x += dx * forceMagnitude;
+                    force_y += dy * forceMagnitude;
+                }
+            }
+            
+            fx[i] = force_x;
+            fy[i] = force_y;
+        }
+    } else {
+        // Sequential processing for small particle counts (more stable)
+        std::vector<int> neighbors;
+        neighbors.reserve(100);
+        
+        for (size_t i = 0; i < n; ++i) {
+            neighbors.clear();
+            
+            const float px = particles[i].x;
+            const float py = particles[i].y;
+            const int ptype = particles[i].type;
+        
+            if (config.useSpatialHash) {
+                spatialHash.queryInto(px, py, config.interactionRadius, neighbors);
+                metrics.spatialQueries++;
+            } else {
+                // Brute force: check all particles
+                neighbors.reserve(n);
+                for (size_t j = 0; j < n; ++j) {
+                    neighbors.push_back(j);
+                }
+            }
+            
+            float force_x = 0.0f;
+            float force_y = 0.0f;
+            
+            // Vectorized inner loop
+            for (size_t idx = 0; idx < neighbors.size(); ++idx) {
+                const int j = neighbors[idx];
+                if (i == static_cast<size_t>(j)) continue;
+                
+                float dx, dy;
+                if (config.boundaryMode == WRAP) {
+                    dx = particles[j].x - px;
+                    dy = particles[j].y - py;
+                    if (dx > 0.5f) dx -= 1.0f;
+                    else if (dx < -0.5f) dx += 1.0f;
+                    if (dy > 0.5f) dy -= 1.0f;
+                    else if (dy < -0.5f) dy += 1.0f;
+                } else {
+                    dx = particles[j].x - px;
+                    dy = particles[j].y - py;
+                }
+                
+                const float distSq = dx * dx + dy * dy;
+                
+                const bool inRange = (distSq > 0.00001f) && (distSq < radiusSq);
+                if (inRange) {
+                    const float invDist = 1.0f / std::sqrt(distSq);
+                    const float dist = distSq * invDist;
+                    const float normDist = dist * invRadius;
+                    
+                    const float attraction = forces[ptype][particles[j].type];
+                    const float force = calculateForce(normDist, attraction) * forceFactor;
+                    
+                    force_x += dx * invDist * force;
+                    force_y += dy * invDist * force;
+                    metrics.forceCalculations++;
+                }
+            }
+            
+            // Mouse interaction
+            if (config.mousePressed) {
+                const float dx = config.mouseX - px;
+                const float dy = config.mouseY - py;
+                const float distSq = dx * dx + dy * dy;
+                const float mouseRadiusSq = config.mouseRadius * config.mouseRadius;
+                
+                if (distSq < mouseRadiusSq && distSq > 0.00001f) {
+                    const float invDist = 1.0f / std::sqrt(distSq);
+                    const float dist = distSq * invDist;
+                    const float strength = (1.0f - dist / config.mouseRadius);
+                    const float forceMagnitude = config.mouseForce * strength * invDist;
+                    
+                    force_x += dx * forceMagnitude;
+                    force_y += dy * forceMagnitude;
+                }
+            }
+            
+            fx[i] = force_x;
+            fy[i] = force_y;
         }
     }
     
-    // Update particles
+    // Update particles - vectorized velocity integration
     std::vector<size_t> toRemove;
     
-    for (size_t i = 0; i < particles.size(); ++i) {
+    const float frictionFactor = config.friction;
+    const float maxSpeedSq = config.maxSpeed * config.maxSpeed;
+    
+    // This loop can be auto-vectorized by the compiler with -O3 -march=native
+    #pragma omp simd
+    for (size_t i = 0; i < n; ++i) {
+        // Velocity update with force application
         particles[i].vx += fx[i] * dt;
         particles[i].vy += fy[i] * dt;
         
-        particles[i].vx *= config.friction;
-        particles[i].vy *= config.friction;
+        // Apply friction
+        particles[i].vx *= frictionFactor;
+        particles[i].vy *= frictionFactor;
         
-        float speed = std::sqrt(particles[i].vx * particles[i].vx + particles[i].vy * particles[i].vy);
-        if (speed > config.maxSpeed) {
-            particles[i].vx = (particles[i].vx / speed) * config.maxSpeed;
-            particles[i].vy = (particles[i].vy / speed) * config.maxSpeed;
+        // Speed limiting (branchless where possible)
+        const float speedSq = particles[i].vx * particles[i].vx + particles[i].vy * particles[i].vy;
+        if (speedSq > maxSpeedSq) {
+            const float invSpeed = 1.0f / std::sqrt(speedSq);
+            const float speedLimit = config.maxSpeed * invSpeed;
+            particles[i].vx *= speedLimit;
+            particles[i].vy *= speedLimit;
         }
         
-        particles[i].x += particles[i].vx;
-        particles[i].y += particles[i].vy;
+    // Advance one step.
+    particles[i].x += particles[i].vx * dt;
+    particles[i].y += particles[i].vy * dt;
         
         // Boundary handling
         const float boundary = 0.98f;
@@ -393,199 +496,16 @@ void ParticleSystem::removeParticlesAtMouse(float radius) {
     }
 }
 
-// ========================================
-// MULTI-THREADING IMPLEMENTATIONS
-// ========================================
-
-void ParticleSystem::calculateForcesForRange(size_t start, size_t end) {
-    // Thread-local force accumulation
-    std::vector<float> fx_local(particles.size(), 0.0f);
-    std::vector<float> fy_local(particles.size(), 0.0f);
-    int forceCalcs = 0;
-    int spatialQueries = 0;
-    
-    for (size_t i = start; i < end && i < particles.size(); ++i) {
-        std::vector<int> neighbors;
-        
-        if (config.useSpatialHash) {
-            neighbors = spatialHash.query(particles[i].x, particles[i].y, config.interactionRadius);
-            spatialQueries++;
-        } else {
-            neighbors.resize(particles.size());
-            for (size_t j = 0; j < particles.size(); ++j) {
-                neighbors[j] = j;
-            }
-        }
-        
-        // Particle interactions
-        for (int j : neighbors) {
-            if (i == static_cast<size_t>(j)) continue;
-            
-            glm::vec2 delta;
-            if (config.boundaryMode == WRAP) {
-                delta = getWrappedDelta(
-                    glm::vec2(particles[i].x, particles[i].y),
-                    glm::vec2(particles[j].x, particles[j].y)
-                );
-            } else {
-                delta = glm::vec2(
-                    particles[j].x - particles[i].x,
-                    particles[j].y - particles[i].y
-                );
-            }
-            
-            float dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
-            
-            if (dist > 0.001f && dist < config.interactionRadius) {
-                float normDist = dist / config.interactionRadius;
-                float attraction = forces[particles[i].type][particles[j].type];
-                float force = calculateForce(normDist, attraction) * config.forceFactor;
-                
-                fx_local[i] += (delta.x / dist) * force;
-                fy_local[i] += (delta.y / dist) * force;
-                forceCalcs++;
-            }
-        }
-        
-        // Gravity effect
-        if (config.enableGravity) {
-            glm::vec2 toCenter(config.gravityCenter.x - particles[i].x,
-                              config.gravityCenter.y - particles[i].y);
-            float dist = std::sqrt(toCenter.x * toCenter.x + toCenter.y * toCenter.y);
-            if (dist > 0.001f) {
-                float gravForce = config.gravityStrength / (dist * dist + 0.1f);
-                fx_local[i] += (toCenter.x / dist) * gravForce;
-                fy_local[i] += (toCenter.y / dist) * gravForce;
-            }
-        }
-        
-        // Vortex effect
-        if (config.enableVortex) {
-            glm::vec2 toCenter(config.vortexCenter.x - particles[i].x,
-                              config.vortexCenter.y - particles[i].y);
-            float dist = std::sqrt(toCenter.x * toCenter.x + toCenter.y * toCenter.y);
-            if (dist > 0.001f) {
-                float vortexForce = config.vortexStrength / (dist + 0.1f);
-                fx_local[i] += (-toCenter.y / dist) * vortexForce;
-                fy_local[i] += (toCenter.x / dist) * vortexForce;
-            }
-        }
-        
-        // Mouse interaction
-        if (config.mousePressed) {
-            float dx = config.mouseX - particles[i].x;
-            float dy = config.mouseY - particles[i].y;
-            float dist = std::sqrt(dx * dx + dy * dy);
-            
-            if (dist < config.mouseRadius && dist > 0.001f) {
-                float strength = (1.0f - dist / config.mouseRadius);
-                fx_local[i] -= (dx / dist) * config.mouseForce * strength;
-                fy_local[i] -= (dy / dist) * config.mouseForce * strength;
-            }
-        }
-    }
-    
-    // Thread-safely accumulate results
-    {
-        std::lock_guard<std::mutex> lock(particleMutex);
-        for (size_t i = start; i < end && i < particles.size(); ++i) {
-            particles[i].fx += fx_local[i];
-            particles[i].fy += fy_local[i];
-        }
-        metrics.forceCalculations += forceCalcs;
-        metrics.spatialQueries += spatialQueries;
-    }
-}
-
-void ParticleSystem::updatePositionsForRange(size_t start, size_t end) {
-    const float dt = 0.016f * config.timeScale;
-    
-    for (size_t i = start; i < end && i < particles.size(); ++i) {
-        // Update velocity
-        particles[i].vx = (particles[i].vx + particles[i].fx * dt) * config.friction;
-        particles[i].vy = (particles[i].vy + particles[i].fy * dt) * config.friction;
-        
-        // Limit speed
-        float speed = std::sqrt(particles[i].vx * particles[i].vx + particles[i].vy * particles[i].vy);
-        if (speed > config.maxSpeed) {
-            particles[i].vx = (particles[i].vx / speed) * config.maxSpeed;
-            particles[i].vy = (particles[i].vy / speed) * config.maxSpeed;
-        }
-        
-        // Update position
-        particles[i].x += particles[i].vx * dt;
-        particles[i].y += particles[i].vy * dt;
-        
-        // Handle boundaries
-        if (config.boundaryMode == BOUNCE) {
-            if (particles[i].x < -1.0f || particles[i].x > 1.0f) {
-                particles[i].vx *= -0.8f;
-                particles[i].x = std::max(-1.0f, std::min(1.0f, particles[i].x));
-            }
-            if (particles[i].y < -1.0f || particles[i].y > 1.0f) {
-                particles[i].vy *= -0.8f;
-                particles[i].y = std::max(-1.0f, std::min(1.0f, particles[i].y));
-            }
-        } else if (config.boundaryMode == WRAP) {
-            particles[i].x = wrapCoord(particles[i].x);
-            particles[i].y = wrapCoord(particles[i].y);
-        }
-    }
-}
-
-// ========================================
-// DYNAMIC PARTICLE MANAGEMENT
-// ========================================
-
-void ParticleSystem::addParticles(int count, int type) {
-    std::uniform_real_distribution<float> posDist(-0.8f, 0.8f);
-    std::uniform_real_distribution<float> velDist(-0.001f, 0.001f);
-    std::uniform_int_distribution<int> typeDist(0, config.numTypes - 1);
-    
-    for (int i = 0; i < count; ++i) {
-        int particleType = (type == -1) ? typeDist(rng) : type % config.numTypes;
-        particles.emplace_back(
-            posDist(rng), posDist(rng),    // position
-            velDist(rng), velDist(rng),    // velocity
-            particleType                   // type
-        );
-    }
-}
-
-void ParticleSystem::removeParticles(int count) {
-    if (count >= static_cast<int>(particles.size())) {
-        particles.clear();
-        return;
-    }
-    
-    // Remove from the end for efficiency
-    particles.resize(particles.size() - count);
-}
-
 void ParticleSystem::setParticleCount(int totalCount) {
-    if (totalCount < 0) totalCount = 0;
-    
-    int currentCount = static_cast<int>(particles.size());
-    if (totalCount > currentCount) {
-        addParticles(totalCount - currentCount);
-    } else if (totalCount < currentCount) {
-        removeParticles(currentCount - totalCount);
-    }
+    config.particlesPerType = totalCount / config.numTypes;
+    createParticles();
 }
 
-void ParticleSystem::setParticleTypes(int numTypes) {
-    if (numTypes < 1) numTypes = 1;
-    if (numTypes > 8) numTypes = 8; // Reasonable limit
-    
+void ParticleSystem::setNumTypes(int numTypes) {
+    if (numTypes < 1) return;
     config.numTypes = numTypes;
     resizeForceMatrix();
-    
-    // Update existing particles to valid types
-    for (auto& particle : particles) {
-        if (particle.type >= numTypes) {
-            particle.type = particle.type % numTypes;
-        }
-    }
+    createParticles();
 }
 
 void ParticleSystem::setForce(int fromType, int toType, float force) {
@@ -603,32 +523,29 @@ float ParticleSystem::getForce(int fromType, int toType) const {
     return 0.0f;
 }
 
-void ParticleSystem::setNumTypes(int numTypes) {
-    if (numTypes != config.numTypes && numTypes > 1 && numTypes <= 8) {
-        config.numTypes = numTypes;
-        resizeForceMatrix();
-        resetSimulation(false);
+void ParticleSystem::addParticles(int count, int type) {
+    std::uniform_real_distribution<float> posDist(-0.5f, 0.5f);
+    std::uniform_real_distribution<float> velDist(-0.001f, 0.001f);
+    
+    for(int i=0; i<count; ++i) {
+        Particle p;
+        p.x = posDist(rng);
+        p.y = posDist(rng);
+        p.vx = velDist(rng);
+        p.vy = velDist(rng);
+        if (type < 0) p.type = std::uniform_int_distribution<int>(0, config.numTypes-1)(rng);
+        else p.type = type % config.numTypes;
+        particles.push_back(p);
     }
 }
 
-void ParticleSystem::applyMouseForce(float x, float y, float strength, float radius) {
-    for (auto& particle : particles) {
-        glm::vec2 delta = glm::vec2(x, y) - glm::vec2(particle.x, particle.y);
-        float dist = glm::length(delta);
-        
-        if (dist < radius && dist > 0.001f) {
-            // Much stronger mouse force with better physics
-            float falloff = (1.0f - dist / radius);
-            glm::vec2 force = glm::normalize(delta) * strength * falloff * falloff * 10.0f; // 10x stronger
-            particle.vx += force.x;
-            particle.vy += force.y;
-            
-            // Cap velocity to prevent particles from flying too fast
-            float speed = glm::length(glm::vec2(particle.vx, particle.vy));
-            if (speed > config.maxSpeed * 2.0f) { // Allow 2x normal max speed under mouse influence
-                particle.vx = (particle.vx / speed) * config.maxSpeed * 2.0f;
-                particle.vy = (particle.vy / speed) * config.maxSpeed * 2.0f;
-            }
-        }
+void ParticleSystem::removeParticles(int count) {
+    if (particles.empty()) return;
+    if (count >= particles.size()) {
+        particles.clear();
+        return;
     }
+    particles.resize(particles.size() - count);
 }
+
+

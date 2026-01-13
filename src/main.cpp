@@ -16,6 +16,8 @@
 #include <iomanip>
 #include <sstream>
 #include <filesystem>
+#include <vector>
+#include "stb_image_write.h"
 
 // Application constants
 const int SCREEN_WIDTH = 1400;
@@ -29,6 +31,21 @@ static void getSizes(GLFWwindow* window, int& fbW, int& fbH, int& viewportW, int
     viewportH = std::max(1, fbH);
 }
 
+static void getMouseInFramebufferCoords(GLFWwindow* window, double x, double y, float& mouseFbX, float& mouseFbY) {
+    // GLFW cursor positions are in screen coordinates (window units), not framebuffer pixels.
+    // Convert to framebuffer coordinates using the window->framebuffer scale.
+    int winW = 0, winH = 0;
+    int fbW = 0, fbH = 0;
+    glfwGetWindowSize(window, &winW, &winH);
+    glfwGetFramebufferSize(window, &fbW, &fbH);
+
+    const float scaleX = (winW > 0) ? (static_cast<float>(fbW) / static_cast<float>(winW)) : 1.0f;
+    const float scaleY = (winH > 0) ? (static_cast<float>(fbH) / static_cast<float>(winH)) : 1.0f;
+
+    mouseFbX = static_cast<float>(x) * scaleX;
+    mouseFbY = static_cast<float>(y) * scaleY;
+}
+
 // Global application state
 struct AppState {
     std::unique_ptr<ParticleSystem> particleSystem;
@@ -40,43 +57,56 @@ struct AppState {
 // Callback functions
 void mouseCallback(GLFWwindow* /*window*/, double x, double y) {
     if (g_app.particleSystem) {
+        // Don't let UI interactions affect the simulation.
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.WantCaptureMouse) {
+            return;
+        }
+
+        float mouseFbX = 0.0f, mouseFbY = 0.0f;
+        getMouseInFramebufferCoords(g_app.window, x, y, mouseFbX, mouseFbY);
+
         // Only handle mouse input in the simulation viewport (left side)
         int fbW = 0, fbH = 0, viewportW = 0, viewportH = 0;
         getSizes(g_app.window, fbW, fbH, viewportW, viewportH);
 
-        if (x >= viewportW) {
+        if (mouseFbX >= static_cast<float>(viewportW)) {
             return; // Ignore mouse in side panel area
         }
         
         // Convert to viewport coordinates
-        float mouseX = (2.0f * static_cast<float>(x)) / static_cast<float>(viewportW) - 1.0f;
-        float mouseY = 1.0f - (2.0f * static_cast<float>(y)) / static_cast<float>(viewportH);
+        float mouseX = (2.0f * mouseFbX) / static_cast<float>(viewportW) - 1.0f;
+        float mouseY = 1.0f - (2.0f * mouseFbY) / static_cast<float>(viewportH);
         g_app.particleSystem->setMousePosition(mouseX, mouseY);
     }
 }
 
 void mouseButtonCallback(GLFWwindow* /*window*/, int button, int action, int /*mods*/) {
     if (!g_app.particleSystem) return;
+
+    // Don't let UI clicks spawn/affect particles.
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureMouse) {
+        return;
+    }
     
     auto& config = g_app.particleSystem->getConfig();
     
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-        // Check mouse mode or particle count to determine behavior
-        if (config.mouseMode == 0 || g_app.particleSystem->getParticles().empty()) {
-            // Spawn mode or zero particles - spawn a single particle
-            std::cout << "🎯 Spawning single particle at mouse position..." << std::endl;
+        // Note: UI labels indicate mouseMode 0 = spawn, 1 = interact.
+        if (config.mouseMode == 0) {
+            // Quietly spawn to avoid console spam causing lag
             g_app.particleSystem->spawnParticlesAtMouse(1, config.spawnParticleType);
         } else {
-            // Normal interaction mode - set mouse pressed for particle interaction
             g_app.particleSystem->setMousePressed(true);
         }
     } else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
-        if (config.mouseMode != 0 && !g_app.particleSystem->getParticles().empty()) {
+        if (config.mouseMode != 0) {
             g_app.particleSystem->setMousePressed(false);
         }
     } else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
         // Right click to spawn multiple particles
-        if (config.enableParticleSpawning) {
+        if (config.enableParticleSpawning && config.mouseMode == 0) {
             std::cout << "🌟 Spawning " << config.spawnCount << " particles at mouse position..." << std::endl;
             g_app.particleSystem->spawnParticlesAtMouse(config.spawnCount, config.spawnParticleType);
         }
@@ -88,47 +118,62 @@ void mouseButtonCallback(GLFWwindow* /*window*/, int button, int action, int /*m
 }
 
 // Screenshot functionality
-void takeScreenshot() {
+void takeScreenshot(GLFWwindow* window) {
     // Create screenshots directory if it doesn't exist
-    std::filesystem::create_directories("../ParticleLifeScreenshots");
+    const char* dir = "screenshots";
+    if (!std::filesystem::exists(dir)) {
+        std::filesystem::create_directories(dir);
+    }
     
     // Generate timestamp for filename
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        now.time_since_epoch()) % 1000;
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
     
     std::stringstream ss;
     ss << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S_");
     ss << std::setfill('0') << std::setw(3) << ms.count();
     
-    std::string filename = "../ParticleLifeScreenshots/particle_life_" + ss.str() + ".png";
+    std::string filename = std::string(dir) + "/particle_life_" + ss.str() + ".png";
     
     std::cout << "📸 Taking screenshot..." << std::endl;
+
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
     
-    // Try focused window capture first
-    std::string command1 = "screencapture -w \"" + filename + "\" 2>/dev/null";
-    int result1 = std::system(command1.c_str());
-    
-    if (result1 == 0) {
-        std::cout << "📸 Screenshot saved: " << filename << std::endl;
-        return;
+    // Allocate memory for pixels
+    GLsizei nrChannels = 3;
+    GLsizei stride = nrChannels * width;
+    stride += (stride % 4) ? (4 - stride % 4) : 0;
+    GLsizei bufferSize = stride * height;
+    std::vector<char> buffer(bufferSize);
+
+    // Read pixels from the front buffer
+    glPixelStorei(GL_PACK_ALIGNMENT, 4);
+    glReadBuffer(GL_FRONT);
+    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buffer.data());
+
+    // Flip the image vertically
+    std::vector<char> flipped_buffer(bufferSize);
+    for (int y = 0; y < height; y++) {
+        memcpy(flipped_buffer.data() + y * stride, buffer.data() + (height - 1 - y) * stride, stride);
     }
-    
-    // Fallback to interactive selection
-    std::cout << "⚠️  Auto-capture failed, opening selection mode..." << std::endl;
-    std::string fallback_command = "screencapture -i \"" + filename + "\" 2>/dev/null";
-    int result2 = std::system(fallback_command.c_str());
-    
-    if (result2 == 0) {
-        std::cout << "📸 Interactive screenshot saved: " << filename << std::endl;
+
+    // Save the image using stb_image_write
+    if (stbi_write_png(filename.c_str(), width, height, nrChannels, flipped_buffer.data(), stride)) {
+        std::cout << "📸 Screenshot saved to " << filename << std::endl;
     } else {
-        std::cout << "❌ Screenshot failed - please use external screenshot tool" << std::endl;
+        std::cout << "❌ Failed to save screenshot." << std::endl;
     }
 }
 
-void keyCallback(GLFWwindow* /*window*/, int key, int /*scancode*/, int action, int /*mods*/) {
+void keyCallback(GLFWwindow* window, int key, int /*scancode*/, int action, int /*mods*/) {
     if (action == GLFW_PRESS && g_app.particleSystem) {
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.WantCaptureKeyboard) {
+            return;
+        }
+
         auto& config = g_app.particleSystem->getConfig();
         
         if (key == GLFW_KEY_SPACE) {
@@ -139,7 +184,7 @@ void keyCallback(GLFWwindow* /*window*/, int key, int /*scancode*/, int action, 
             std::cout << "🔄 Simulation reset" << std::endl;
         } else if (key == GLFW_KEY_P) {
             std::cout << "📸 P key pressed - taking screenshot..." << std::endl;
-            takeScreenshot();
+            takeScreenshot(window);
         }
     }
 }
@@ -167,6 +212,9 @@ bool initializeOpenGL() {
     
     glfwMakeContextCurrent(g_app.window);
     
+    // Enable VSync for smoother rendering
+    glfwSwapInterval(1);
+    
     // Initialize GLAD
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD" << std::endl;
@@ -188,6 +236,9 @@ bool initializeImGui() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    // Encourage ImGui to keep debug checks enabled.
+    io.ConfigDebugIsDebuggerPresent = true;
     
     // Modern dark theme with improved colors and spacing
     ImGui::StyleColorsDark();
@@ -362,10 +413,35 @@ int main() {
         return -1;
     }
     
+    // Timestep management
+    double lastTime = glfwGetTime();
+    double accumulator = 0.0;
+    const double fixedDeltaTime = 1.0 / 60.0; // 60 Hz physics update rate (matches target frame rate)
+    const double maxFrameTime = 0.25; // Cap at 250ms (4 FPS minimum) to prevent spiral of death
+
     // Main application loop
     while (!glfwWindowShouldClose(g_app.window)) {
-        // Update simulation
-        g_app.particleSystem->update();
+        double currentTime = glfwGetTime();
+        double frameTime = currentTime - lastTime;
+        lastTime = currentTime;
+        
+        // Clamp frame time to prevent spiral of death
+        if (frameTime > maxFrameTime) {
+            frameTime = maxFrameTime;
+        }
+        
+        accumulator += frameTime;
+
+        // Limit accumulator to prevent catching up too much
+        if (accumulator > maxFrameTime) {
+            accumulator = maxFrameTime;
+        }
+
+        // Update simulation with a fixed timestep
+        while (accumulator >= fixedDeltaTime) {
+            g_app.particleSystem->update(fixedDeltaTime);
+            accumulator -= fixedDeltaTime;
+        }
 
         // Use the actual framebuffer size (windowed mode + HiDPI safe).
         int fbW = 0, fbH = 0, viewportW = 0, viewportH = 0;

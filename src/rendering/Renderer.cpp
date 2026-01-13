@@ -137,45 +137,57 @@ void Renderer::setupFrame() {
 void Renderer::renderParticles(const std::vector<Particle>& particles) {
     if (!shaderManager || particles.empty()) return;
     
-    // Prepare vertex data
-    std::vector<float> vertexData;
+    // Prepare vertex data - use static to avoid reallocations
+    static std::vector<float> vertexData;
+    vertexData.clear();
     vertexData.reserve(particles.size() * 5);
     
     static float time = 0.0f;
     time += 0.016f; // Approximate frame time for animation
     
-    for (const auto& p : particles) {
-        vertexData.push_back(p.x);
-        vertexData.push_back(p.y);
-        
-        glm::vec3 color;
-        
-        if (config.colorBySpeed) {
+    if (config.colorBySpeed) {
+        // Color by velocity - with speed calculations
+        const float invMaxSpeed = 1.0f / config.maxSpeed;
+        for (const auto& p : particles) {
+            vertexData.push_back(p.x);
+            vertexData.push_back(p.y);
+            
             // Color by velocity magnitude
             float speed = std::sqrt(p.vx * p.vx + p.vy * p.vy);
-            float t = std::min(speed / config.maxSpeed, 1.0f);
+            float t = std::min(speed * invMaxSpeed, 1.0f);
             
+            glm::vec3 color;
             // More vibrant color transition: blue -> cyan -> green -> yellow -> red
             if (t < 0.25f) {
-                float localT = t / 0.25f;
+                float localT = t * 4.0f; // Precalculate division
                 color = glm::mix(glm::vec3(0.2f, 0.2f, 1.0f), glm::vec3(0.2f, 1.0f, 1.0f), localT);
             } else if (t < 0.5f) {
-                float localT = (t - 0.25f) / 0.25f;
+                float localT = (t - 0.25f) * 4.0f;
                 color = glm::mix(glm::vec3(0.2f, 1.0f, 1.0f), glm::vec3(0.2f, 1.0f, 0.2f), localT);
             } else if (t < 0.75f) {
-                float localT = (t - 0.5f) / 0.25f;
+                float localT = (t - 0.5f) * 4.0f;
                 color = glm::mix(glm::vec3(0.2f, 1.0f, 0.2f), glm::vec3(1.0f, 1.0f, 0.2f), localT);
             } else {
-                float localT = (t - 0.75f) / 0.25f;
+                float localT = (t - 0.75f) * 4.0f;
                 color = glm::mix(glm::vec3(1.0f, 1.0f, 0.2f), glm::vec3(1.0f, 0.2f, 0.2f), localT);
             }
-        } else {
-            color = colors[p.type % colors.size()];
+            
+            vertexData.push_back(color.r);
+            vertexData.push_back(color.g);
+            vertexData.push_back(color.b);
         }
-        
-        vertexData.push_back(color.r);
-        vertexData.push_back(color.g);
-        vertexData.push_back(color.b);
+    } else {
+        // Simple type-based coloring (faster)
+        const size_t colorCount = colors.size();
+        for (const auto& p : particles) {
+            vertexData.push_back(p.x);
+            vertexData.push_back(p.y);
+            
+            const glm::vec3& color = colors[p.type % colorCount];
+            vertexData.push_back(color.r);
+            vertexData.push_back(color.g);
+            vertexData.push_back(color.b);
+        }
     }
     
     // Upload vertex data
@@ -188,12 +200,11 @@ void Renderer::renderParticles(const std::vector<Particle>& particles) {
     
     float particleSize = config.particleSize;
     
-    // Apply size variation based on speed if enabled
-    if (config.sizeBySpeed || config.pulsateParticles) {
-        // We'll handle per-particle sizing in a more advanced way later
-        // For now, just apply global pulsation
-        if (config.pulsateParticles) {
-            float pulsate = 1.0f + 0.3f * std::sin(time * config.pulsateSpeed);
+    // Apply size variation based on speed or pulsation if enabled
+    if (config.sizeBySpeed || config.enablePulsation) {
+        // Apply global pulsation
+        if (config.enablePulsation) {
+            float pulsate = 1.0f + config.pulsationAmount * std::sin(time * config.pulsationSpeed);
             particleSize *= pulsate;
         }
     }

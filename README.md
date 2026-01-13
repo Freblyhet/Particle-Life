@@ -332,7 +332,38 @@ src/
 - **Force Factor 0.15-0.25**: Stable but dynamic behavior
 - **Threading ON**: Essential for smooth real-time control
 
+## Documentation
+
+For detailed technical documentation, see the [`docs/`](docs/) folder:
+
+- 📋 **[Feature Comparison](docs/FEATURE_COMPARISON.md)** - Comparison with other particle-life implementations
+- 🧹 **[Cleanup Summary](docs/CLEANUP_SUMMARY.md)** - Codebase cleanup and removed redundancies
+- ⚡ **[Vectorization Optimizations](docs/VECTORIZATION_OPTIMIZATIONS.md)** - Performance optimization details
+- 🔬 **[Why Particles Pair Up](docs/WHY_PARTICLES_PAIR_UP.md)** - Physics explanation of emergent pairing behavior
+- ✨ **[UI Polish Summary](docs/UI_POLISH_SUMMARY.md)** - Visual enhancements and interface improvements
+- 📸 **[Screenshots Documentation](docs/SCREENSHOTS.md)** - Screenshot feature documentation
+
 ## Recent Updates & Changelog
+
+### Version 2.1 - Visual Polish & Optimization (January 2026)
+**Visual Enhancements:**
+- ✨ **Enhanced UI**: Icons, color-coded buttons, and visual progress bars
+- 🎨 **Spawn Type Preview**: Visual color preview for particle spawning
+- 📊 **Better Performance Display**: FPS progress bars and detailed metrics
+- 🎛️ **Color-Coded Force Matrix**: Visual force indicators (green=attraction, red=repulsion)
+- 💬 **Comprehensive Tooltips**: Every control now has helpful descriptions
+
+**Technical Improvements:**
+- 🧹 **Codebase Cleanup**: Removed backup files, added proper .gitignore
+- 📝 **Complete Documentation**: 6 technical documents in docs/ folder
+- 🔧 **Clean Build**: Zero compiler warnings
+- ⚡ **6-12x Performance**: Advanced vectorization and optimization
+
+**User Experience:**
+- 🌈 **Professional Interface**: Modern dark theme with smooth visual feedback
+- 🎯 **Better Organization**: Intuitive section headers with emoji icons
+- 🎨 **Color Psychology**: Function-appropriate button colors
+- 📐 **Consistent Layout**: Better spacing and visual hierarchy
 
 ### Version 2.0 - Enhanced Interaction & Documentation
 **New Features:**
@@ -347,12 +378,6 @@ src/
 - **Performance Optimization**: Better spatial hashing and thread management
 - **Code Quality**: Modern C++17 practices and improved error handling
 - **Cross-Platform**: Tested and verified on macOS, Linux, and Windows
-
-**User Experience:**
-- **Comprehensive Documentation**: Updated README with detailed usage examples
-- **Fresh Screenshots**: Complete visual documentation of all features
-- **Intuitive Controls**: Clearer UI with context-sensitive instructions
-- **Workflow Examples**: Step-by-step guides for common use cases
 
 ## License
 

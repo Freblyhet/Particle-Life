@@ -24,8 +24,9 @@ public:
         grid[hash(cx, cy)].push_back(idx);
     }
     
-    std::vector<int> query(float x, float y, float radius) const {
-        std::vector<int> result;
+    // Efficient version that reuses an existing vector (avoids allocation)
+    void queryInto(float x, float y, float radius, std::vector<int>& result) const {
+        result.clear();
         int minX = static_cast<int>(std::floor((x - radius) / cellSize));
         int maxX = static_cast<int>(std::floor((x + radius) / cellSize));
         int minY = static_cast<int>(std::floor((y - radius) / cellSize));
@@ -39,6 +40,12 @@ public:
                 }
             }
         }
+    }
+    
+    // Legacy method (less efficient, kept for compatibility)
+    std::vector<int> query(float x, float y, float radius) const {
+        std::vector<int> result;
+        queryInto(x, y, radius, result);
         return result;
     }
 };

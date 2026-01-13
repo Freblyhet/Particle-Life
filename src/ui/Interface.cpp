@@ -19,6 +19,27 @@ void Interface::cleanup() {
     // Cleanup handled by main application
 }
 
+// Helper function to get particle type color for UI preview
+ImVec4 Interface::getParticleTypeColor(int type, int totalTypes) {
+    // Generate colors based on HSV color wheel
+    float hue = (float)type / (float)totalTypes;
+    
+    // Convert HSV to RGB
+    float h = hue * 6.0f;
+    float c = 1.0f; // Full saturation
+    float x = 1.0f - fabs(fmod(h, 2.0f) - 1.0f);
+    
+    float r, g, b;
+    if (h < 1.0f) { r = c; g = x; b = 0; }
+    else if (h < 2.0f) { r = x; g = c; b = 0; }
+    else if (h < 3.0f) { r = 0; g = c; b = x; }
+    else if (h < 4.0f) { r = 0; g = x; b = c; }
+    else if (h < 5.0f) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    
+    return ImVec4(r, g, b, 1.0f);
+}
+
 void Interface::render() {
     // Set modern ImGui style
     setupModernStyle();
@@ -122,7 +143,8 @@ void Interface::renderMainControlPanel() {
     
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | 
                             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_MenuBar;
-    if (ImGui::Begin("Control Panel", &showControlPanel, flags)) {
+    // Don't pass a close pointer: this removes the (X) and prevents the panel being hidden.
+    if (ImGui::Begin("Control Panel", nullptr, flags)) {
         
         // Menu bar with quick actions
         if (ImGui::BeginMenuBar()) {
@@ -142,10 +164,10 @@ void Interface::renderMainControlPanel() {
                     }
                 }
                 if (ImGui::MenuItem("Chaos")) {
-                    particleSystem.generateRandomForces();
+                    particleSystem.randomizeForces();
                 }
                 if (ImGui::MenuItem("Reset")) {
-                    particleSystem.reset();
+                    particleSystem.resetSimulation(true);
                 }
                 ImGui::EndMenu();
             }
@@ -154,204 +176,332 @@ void Interface::renderMainControlPanel() {
         
         auto& config = particleSystem.getConfig();
         
-        // Main simulation controls section
-        if (ImGui::CollapsingHeader("Simulation Control", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::PushItemWidth(-120);
-            
-            // Pause/Resume with status
-            ImVec4 statusColor = config.isPaused ? ImVec4(1.0f, 0.6f, 0.2f, 1.0f) : ImVec4(0.2f, 1.0f, 0.4f, 1.0f);
-            ImGui::TextColored(statusColor, config.isPaused ? "PAUSED" : "RUNNING");
-            ImGui::SameLine();
-            if (ImGui::Button(config.isPaused ? "Resume" : "Pause", ImVec2(80, 25))) {
-                config.isPaused = !config.isPaused;
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Reset", ImVec2(60, 25))) {
-                particleSystem.reset();
-            }
-            
-            ImGui::Separator();
-            
-            // Particle count with live feedback
-            ImGui::Text("Particles: %d total", (int)particleSystem.getParticles().size());
-            if (ImGui::SliderInt("Per Type", &tempConfig.newParticlesPerType, 0, 1000, "%d particles")) {
-                if (tempConfig.newParticlesPerType != config.particlesPerType) {
-                    particleSystem.setParticleCount(tempConfig.newParticlesPerType * config.numTypes);
-                }
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Set to 0 to create an empty simulation");
-            }
-            
-            // Particle types with visual feedback
-            ImGui::Text("Types: %d colors active", config.numTypes);
-            if (ImGui::SliderInt("Particle Types", &tempConfig.newNumTypes, 2, 8, "%d types")) {
-                if (tempConfig.newNumTypes != config.numTypes) {
-                    particleSystem.setNumTypes(tempConfig.newNumTypes);
-                    tempConfig.newNumTypes = config.numTypes; // Sync back
-                }
-            }
-            
-            ImGui::PopItemWidth();
+        // Flattened section headers (no collapsing "folder" widgets)
+        ImGui::SeparatorText("🎮 Simulation Control");
+        ImGui::PushItemWidth(-120);
+
+        // Status indicator with icon
+        ImVec4 statusColor = config.paused ? ImVec4(1.0f, 0.6f, 0.2f, 1.0f) : ImVec4(0.2f, 1.0f, 0.4f, 1.0f);
+        const char* statusIcon = config.paused ? "⏸️" : "▶️";
+        const char* statusText = config.paused ? " PAUSED" : " RUNNING";
+        ImGui::TextColored(statusColor, "%s%s", statusIcon, statusText);
+        ImGui::SameLine();
+        
+        // Larger, more prominent control buttons
+        ImGui::PushStyleColor(ImGuiCol_Button, config.paused ? ImVec4(0.2f, 0.8f, 0.3f, 0.8f) : ImVec4(1.0f, 0.5f, 0.2f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, config.paused ? ImVec4(0.3f, 0.9f, 0.4f, 1.0f) : ImVec4(1.0f, 0.6f, 0.3f, 1.0f));
+        if (ImGui::Button(config.paused ? "▶️ Resume" : "⏸️ Pause", ImVec2(100, 30))) {
+            config.paused = !config.paused;
+        }
+        ImGui::PopStyleColor(2);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Pause/Resume the simulation [SPACE]");
         }
         
-        // Physics parameters section
-        if (ImGui::CollapsingHeader("Physics Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::PushItemWidth(-120);
-            
-            ImGui::SliderFloat("Force Strength", &config.forceFactor, 0.1f, 2.0f, "%.2f");
-            ImGui::SliderFloat("Max Speed", &config.maxSpeed, 0.001f, 0.05f, "%.3f");
-            ImGui::SliderFloat("Friction", &config.friction, 0.9f, 0.999f, "%.3f");
-            ImGui::SliderFloat("Interaction Range", &config.interactionRadius, 0.1f, 0.5f, "%.2f");
-            
-            ImGui::Separator();
-            ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), "Mouse Interaction");
-            ImGui::SliderFloat("Mouse Force", &config.mouseForce, 0.001f, 0.2f, "%.3f");
-            ImGui::SliderFloat("Mouse Radius", &config.mouseRadius, 0.1f, 0.8f, "%.2f");
-            
-            // Show current mouse status
-            if (config.mousePressed) {
-                ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "Mouse: ACTIVE (%.2f, %.2f)", config.mouseX, config.mouseY);
-            } else {
-                ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Mouse: Click and drag to attract");
-            }
-            
-            // Particle spawning controls
-            ImGui::Separator();
-            ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1.0f), "Click Mode");
-            
-            // Mouse mode selection
-            ImGui::RadioButton("🎯 Spawn Mode", &config.mouseMode, 0);
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Left-click spawns single particles");
-            }
-            ImGui::SameLine();
-            ImGui::RadioButton("💫 Interact Mode", &config.mouseMode, 1);
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Left-click attracts particles with force");
-            }
-            
-            // Show current mode status
-            if (config.mouseMode == 0) {
-                ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, 1.0f), "🎯 Click anywhere to spawn particles");
-            } else {
-                if (particleSystem.getParticles().empty()) {
-                    ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1.0f), "⚠️ No particles to interact with - auto-spawn mode");
-                } else {
-                    ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "💫 Click and drag to attract particles");
-                }
-            }
-            
-            ImGui::Separator();
-            ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "Advanced Spawning");
-            
-            ImGui::Checkbox("Enable Multi-Spawn Mode", &config.enableParticleSpawning);
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Right-click to spawn multiple particles at once");
-            }
-            
-            if (config.enableParticleSpawning) {
-                ImGui::SliderInt("Spawn Count", &config.spawnCount, 1, 50, "%d particles");
-                if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("Number of particles to spawn with right-click");
-                }
-            }
-            
-            // Particle type selection
-            ImGui::SliderInt("Spawn Type", &config.spawnParticleType, 0, config.numTypes - 1, "Type %d");
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Choose which particle type to spawn (affects color and behavior)");
-            }
-            
-            ImGui::PopItemWidth();
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.3f, 0.3f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.4f, 0.4f, 1.0f));
+        if (ImGui::Button("🔄 Reset", ImVec2(80, 30))) {
+            particleSystem.resetSimulation(true);
+        }
+        ImGui::PopStyleColor(2);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Reset simulation with new random positions");
+        }
+
+        // Particle count display with visual indicator
+        int totalParticles = (int)particleSystem.getParticles().size();
+        ImGui::Spacing();
+        ImGui::Text("📊 Total Particles: %d", totalParticles);
+        
+        // Visual progress bar for particle density
+        float particleDensity = totalParticles / 5000.0f; // Assuming 5000 is "full"
+        ImGui::ProgressBar(particleDensity, ImVec2(-1, 0), "");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Current particle density");
         }
         
-        // Multi-threading controls
-        if (ImGui::CollapsingHeader("Performance Settings")) {
-            ImGui::Checkbox("Enable Multi-threading", &config.enableMultiThreading);
-            if (config.enableMultiThreading) {
-                ImGui::PushItemWidth(-120);
-                ImGui::SliderInt("Thread Count", &config.numThreads, 0, 16);
-                if (config.numThreads == 0) {
-                    ImGui::SameLine();
-                    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "(auto-detect)");
-                }
-                ImGui::SliderInt("Min Particles for Threading", &config.minParticlesForThreading, 50, 1000);
-                ImGui::PopItemWidth();
+        ImGui::Spacing();
+        if (ImGui::SliderInt("Per Type", &tempConfig.newParticlesPerType, 0, 1000, "%d particles")) {
+            if (tempConfig.newParticlesPerType != config.particlesPerType) {
+                particleSystem.setParticleCount(tempConfig.newParticlesPerType * config.numTypes);
             }
         }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Number of particles per type\nSet to 0 to create an empty simulation");
+        }
+
+        if (ImGui::SliderInt("🎨 Particle Types", &tempConfig.newNumTypes, 2, 8, "%d types")) {
+            if (tempConfig.newNumTypes != config.numTypes) {
+                particleSystem.setNumTypes(tempConfig.newNumTypes);
+                tempConfig.newNumTypes = config.numTypes; // Sync back
+            }
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Number of different particle types (colors)\nEach type can have unique interaction rules");
+        }
+        ImGui::PopItemWidth();
         
-        // Quick panel access
+        ImGui::SeparatorText("⚙️ Physics Parameters");
+        ImGui::PushItemWidth(-120);
+
+        if (ImGui::SliderFloat("💪 Force Strength", &config.forceFactor, 0.1f, 2.0f, "%.2f")) {
+            // Live update
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Global multiplier for all interaction forces");
+        }
+        
+        if (ImGui::SliderFloat("⚡ Max Speed", &config.maxSpeed, 0.001f, 0.05f, "%.3f")) {
+            // Live update
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Speed limit for particles");
+        }
+        
+        if (ImGui::SliderFloat("🌬️ Friction", &config.friction, 0.9f, 0.999f, "%.3f")) {
+            // Live update
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Higher = less friction (smoother motion)\nLower = more friction (slower particles)");
+        }
+        
+        if (ImGui::SliderFloat("🎯 Interaction Range", &config.interactionRadius, 0.1f, 0.5f, "%.2f")) {
+            // Live update
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Maximum distance at which particles can interact");
+        };
+
+        ImGui::Spacing();
         ImGui::Separator();
-        ImGui::Text("Panel Access");
+        ImGui::SeparatorText("🖱️ Mouse Interaction");
         
-        ImVec2 buttonSize(ImGui::GetContentRegionAvail().x * 0.48f, 30);
-        
-        if (ImGui::Button("Visual Effects", buttonSize)) {
-            showVisualEffects = !showVisualEffects;
+        if (ImGui::SliderFloat("Mouse Force", &config.mouseForce, 0.001f, 0.2f, "%.3f")) {
+            // Live update
         }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Strength of mouse attraction/repulsion");
+        }
+        
+        if (ImGui::SliderFloat("Mouse Radius", &config.mouseRadius, 0.1f, 0.8f, "%.2f")) {
+            // Live update
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Range of mouse influence on particles");
+        }
+            
+        // Show current mouse status with better visual feedback
+        ImGui::Spacing();
+        if (config.mousePressed) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 1.0f, 0.4f, 1.0f));
+            ImGui::TextWrapped("🟢 Mouse ACTIVE at (%.2f, %.2f)", config.mouseX, config.mouseY);
+            ImGui::PopStyleColor();
+        } else {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+            ImGui::TextWrapped("⚪ Click and drag to attract particles");
+            ImGui::PopStyleColor();
+        }
+            
+        // Particle spawning controls
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::SeparatorText("✨ Click Mode");
+        
+        // Mouse mode selection with better visual style
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.3f, 0.8f, 1.0f, 1.0f));
+        if (ImGui::RadioButton("🎯 Spawn Mode", &config.mouseMode, 0)) {
+            // Mode changed
+        }
+        ImGui::PopStyleColor();
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Left-click spawns single particles at cursor location");
+        }
+        
         ImGui::SameLine();
-        if (ImGui::Button("Force Editor", buttonSize)) {
-            showForceMatrix = !showForceMatrix;
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 0.6f, 0.3f, 1.0f));
+        if (ImGui::RadioButton("💫 Interact Mode", &config.mouseMode, 1)) {
+            // Mode changed
+        }
+        ImGui::PopStyleColor();
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Left-click and drag to attract particles with force");
+        }
+            
+        // Show current mode status with enhanced visuals
+        ImGui::Spacing();
+        if (config.mouseMode == 0) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.0f, 0.3f, 1.0f));
+            ImGui::TextWrapped("🎯 Click anywhere to spawn particles");
+            ImGui::PopStyleColor();
+        } else {
+            if (particleSystem.getParticles().empty()) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.3f, 1.0f));
+                ImGui::TextWrapped("⚠️ No particles to interact with");
+                ImGui::Text("Auto-switching to spawn mode...");
+                ImGui::PopStyleColor();
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.8f, 1.0f, 1.0f));
+                ImGui::TextWrapped("💫 Click and drag to attract");
+                ImGui::PopStyleColor();
+            }
+        }
+            
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Text("🌟 Advanced Spawning");
+        
+        if (ImGui::Checkbox("Enable Multi-Spawn", &config.enableParticleSpawning)) {
+            // Spawn mode toggled
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Right-click to spawn multiple particles at once");
+        }
+            
+        if (config.enableParticleSpawning) {
+            ImGui::Indent();
+            if (ImGui::SliderInt("Spawn Count", &config.spawnCount, 1, 50, "%d particles")) {
+                // Live update
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Number of particles spawned per right-click");
+            }
+            ImGui::Unindent();
+        }
+
+        // Particle type selection with visual indicator
+        ImGui::Spacing();
+        char typeLabel[64];
+        snprintf(typeLabel, sizeof(typeLabel), "🎨 Spawn Type ##spawntype");
+        if (ImGui::SliderInt(typeLabel, &config.spawnParticleType, 0, config.numTypes - 1, "Type %d")) {
+            // Live update
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Choose which particle type to spawn\nEach type has unique color and interaction behavior");
         }
         
-        if (ImGui::Button("Performance", buttonSize)) {
-            showPerformanceHUD = !showPerformanceHUD;
-        }
+        // Visual preview of selected type color
+        ImVec4 typeColor = getParticleTypeColor(config.spawnParticleType, config.numTypes);
         ImGui::SameLine();
-        if (ImGui::Button("Interactions", buttonSize)) {
-            showInteraction = !showInteraction;
-        }
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImVec2 colorBoxPos = ImGui::GetCursorScreenPos();
+        drawList->AddRectFilled(
+            colorBoxPos,
+            ImVec2(colorBoxPos.x + 20, colorBoxPos.y + 20),
+            ImGui::ColorConvertFloat4ToU32(typeColor)
+        );
+        drawList->AddRect(
+            colorBoxPos,
+            ImVec2(colorBoxPos.x + 20, colorBoxPos.y + 20),
+            IM_COL32(255, 255, 255, 255),
+            0.0f,
+            0,
+            1.5f
+        );
+        ImGui::Dummy(ImVec2(20, 20));
+        
+        ImGui::PopItemWidth();
+        
+        // Performance settings: removed multi-threading toggles.
+        // The current simulation update path is single-threaded, so exposing these options
+        // would be misleading.
+        
+        // No separate "Panel Access" buttons: this UI is a single, unified control panel.
     }
     
-    // Integrated Performance Section
-    if (ImGui::CollapsingHeader("Performance Monitor", showPerformanceHUD ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-        const auto& metrics = particleSystem.getPerformanceMetrics();
+    // Integrated Performance Section with enhanced visuals
+    ImGui::Spacing();
+    if (ImGui::CollapsingHeader("📊 Performance Monitor", showPerformanceHUD ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+        const auto& metrics = particleSystem.getMetrics();
         const auto& particles = particleSystem.getParticles();
         
         float fps = metrics.averageFPS;
-        ImVec4 fpsColor = fps > 50 ? ImVec4(0,1,0,1) : fps > 30 ? ImVec4(1,1,0,1) : ImVec4(1,0,0,1);
+        ImVec4 fpsColor = fps > 50 ? ImVec4(0.2f, 1.0f, 0.3f, 1.0f) : 
+                          fps > 30 ? ImVec4(1.0f, 1.0f, 0.2f, 1.0f) : 
+                          ImVec4(1.0f, 0.2f, 0.2f, 1.0f);
         
-        ImGui::TextColored(fpsColor, "FPS: %.1f", fps);
-        ImGui::Text("Particles: %zu", particles.size());
-        ImGui::Text("Update: %.2fms", metrics.updateTimeMs);
-        ImGui::Text("Render: %.2fms", metrics.renderTimeMs);
-    }
-    
-    // Integrated Visual Effects Section  
-    if (ImGui::CollapsingHeader("Visual Effects", showVisualEffects ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
-        auto& renderConfig = renderer.getConfig();
+        // FPS display with visual indicator
+        ImGui::Text("Frame Rate:");
+        ImGui::SameLine();
+        ImGui::TextColored(fpsColor, "%.1f FPS", fps);
         
-        ImGui::PushItemWidth(-100);
-        
-        ImGui::Checkbox("Particle Trails", &renderConfig.enableTrails);
-        if (renderConfig.enableTrails) {
-            ImGui::SliderFloat("Trail Fade", &renderConfig.trailLength, 0.5f, 0.99f, "%.2f");
-            ImGui::SliderFloat("Trail Intensity", &renderConfig.trailIntensity, 0.1f, 1.0f, "%.2f");
-        }
+        // FPS progress bar
+        float fpsNormalized = std::min(fps / 60.0f, 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, fpsColor);
+        ImGui::ProgressBar(fpsNormalized, ImVec2(-1, 0), "");
+        ImGui::PopStyleColor();
         
         ImGui::Separator();
+        ImGui::Text("🔢 Particle Count: %zu", particles.size());
+        ImGui::Text("⚙️ Update Time: %.2f ms", metrics.updateTimeMs);
+        ImGui::Text("🎨 Render Time: %.2f ms", metrics.renderTimeMs);
         
-        ImGui::Checkbox("Particle Glow", &renderConfig.enableGlow);
-        ImGui::Checkbox("Color by Speed", &renderConfig.colorBySpeed);
+        float totalTime = metrics.updateTimeMs + metrics.renderTimeMs;
+        ImGui::Spacing();
+        ImGui::Text("Total Frame: %.2f ms", totalTime);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Target: 16.67ms for 60 FPS");
+        }
+    }
+    
+    // Integrated Visual Effects Section with icons
+    ImGui::Spacing();
+    if (ImGui::CollapsingHeader("✨ Visual Effects", showVisualEffects ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+        auto& renderConfig = renderer.getConfig();
+
+        ImGui::PushID("IntegratedVisualEffects");
+        ImGui::PushItemWidth(-100);
+
+        if (ImGui::Checkbox("🌟 Particle Glow", &renderConfig.enableGlow)) {
+            // Glow toggled
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Enable soft glow effect around particles");
+        }
+        
+        if (ImGui::Checkbox("🌈 Color by Speed", &renderConfig.colorBySpeed)) {
+            // Color mode toggled
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Change particle colors based on their velocity\nFaster particles = Different colors");
+        }
+        
         if (renderConfig.colorBySpeed) {
-            ImGui::SliderFloat("Max Speed", &renderConfig.maxSpeed, 0.001f, 0.1f, "%.3f");
+            ImGui::Indent();
+            ImGui::Text("Speed Range:");
+            if (ImGui::SliderFloat("##MaxSpeed", &renderConfig.maxSpeed, 0.001f, 0.1f, "%.3f")) {
+                // Live update
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Maximum speed for color mapping");
+            }
+            ImGui::Unindent();
         }
         
         ImGui::PopItemWidth();
+        ImGui::PopID();
     }
     
-    // Integrated Force Matrix Section
-    if (ImGui::CollapsingHeader("Force Matrix Editor", showForceMatrix ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+    // Integrated Force Matrix Section with enhanced visuals
+    ImGui::Spacing();
+    if (ImGui::CollapsingHeader("🎛️ Force Matrix Editor", showForceMatrix ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
         auto& config = particleSystem.getConfig();
         
-        ImGui::Text("Edit forces between particle types:");
-        ImGui::Text("Positive = Attraction, Negative = Repulsion");
+        ImGui::TextWrapped("Edit interaction forces between particle types");
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 1.0f, 0.3f, 1.0f));
+        ImGui::Text("🟢 Positive = Attraction");
+        ImGui::PopStyleColor();
+        ImGui::SameLine(200);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.2f, 1.0f));
+        ImGui::Text("🔴 Negative = Repulsion");
+        ImGui::PopStyleColor();
         ImGui::Separator();
         
         // Force matrix grid
         for (int from = 0; from < config.numTypes; ++from) {
-            ImGui::Text("Type %d Forces:", from);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+            ImGui::Text("Type %d →", from);
+            ImGui::PopStyleColor();
             ImGui::Indent();
             
             for (int to = 0; to < config.numTypes; ++to) {
@@ -359,14 +509,34 @@ void Interface::renderMainControlPanel() {
                 
                 float force = particleSystem.getForce(from, to);
                 ImGui::PushItemWidth(60);
+                
+                // Color-coded slider based on force value
+                ImVec4 sliderColor;
+                if (force > 0.1f) {
+                    sliderColor = ImVec4(0.2f, 1.0f, 0.2f, 1.0f);
+                } else if (force < -0.1f) {
+                    sliderColor = ImVec4(1.0f, 0.2f, 0.2f, 1.0f);
+                } else {
+                    sliderColor = ImVec4(0.7f, 0.7f, 0.7f, 1.0f);
+                }
+                
+                ImGui::PushStyleColor(ImGuiCol_SliderGrab, sliderColor);
+                ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, sliderColor);
+                
                 if (ImGui::SliderFloat(("##force_" + std::to_string(from) + "_" + std::to_string(to)).c_str(), 
                                      &force, -1.0f, 1.0f, "%.2f")) {
                     particleSystem.setForce(from, to, force);
                 }
+                ImGui::PopStyleColor(2);
                 ImGui::PopItemWidth();
                 
                 ImGui::SameLine();
-                ImGui::Text("→ Type %d", to);
+                ImGui::Text("Type %d", to);
+                if (ImGui::IsItemHovered()) {
+                    const char* forceType = force > 0.1f ? "Attraction" : 
+                                          force < -0.1f ? "Repulsion" : "Neutral";
+                    ImGui::SetTooltip("Type %d → Type %d: %s (%.2f)", from, to, forceType, force);
+                }
                 
                 ImGui::PopID();
             }
@@ -375,12 +545,18 @@ void Interface::renderMainControlPanel() {
         }
     }
     
-    // Integrated Quick Presets Section
-    if (ImGui::CollapsingHeader("Quick Presets", showInteraction ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
+    // Integrated Quick Presets Section with better organization
+    ImGui::Spacing();
+    if (ImGui::CollapsingHeader("🎭 Quick Presets", showInteraction ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
         auto& config = particleSystem.getConfig();
-        ImVec2 buttonSize(ImGui::GetContentRegionAvail().x * 0.48f, 25);
+        ImVec2 buttonSize(ImGui::GetContentRegionAvail().x * 0.48f, 30);
         
-        if (ImGui::Button("Life Pattern", buttonSize)) {
+        ImGui::Text("Pattern Presets:");
+        ImGui::Spacing();
+        
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.3f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 0.4f, 1.0f));
+        if (ImGui::Button("🌱 Life Pattern", buttonSize)) {
             for (int i = 0; i < config.numTypes; ++i) {
                 for (int j = 0; j < config.numTypes; ++j) {
                     if (i == j) {
@@ -394,21 +570,87 @@ void Interface::renderMainControlPanel() {
                 }
             }
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Random", buttonSize)) {
-            particleSystem.generateRandomForces();
+        ImGui::PopStyleColor(2);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Self-repulsion with neighbor attraction\nCreates organic, life-like patterns");
         }
         
-        if (ImGui::Button("Reset All", buttonSize)) {
-            particleSystem.reset();
-        }
         ImGui::SameLine();
-        if (ImGui::Button("Clear Forces", buttonSize)) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.4f, 0.2f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.5f, 0.3f, 1.0f));
+        if (ImGui::Button("🎲 Random", buttonSize)) {
+            particleSystem.randomizeForces();
+        }
+        ImGui::PopStyleColor(2);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Randomize all interaction forces\nDiscovery mode!");
+        }
+        
+        ImGui::Spacing();
+        ImGui::Text("Control Actions:");
+        ImGui::Spacing();
+        
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.3f, 0.3f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.7f, 0.4f, 0.4f, 1.0f));
+        if (ImGui::Button("🔄 Reset All", buttonSize)) {
+            particleSystem.resetSimulation(true);
+        }
+        ImGui::PopStyleColor(2);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Reset entire simulation\nNew positions, forces intact");
+        }
+        
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.4f, 0.4f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+        if (ImGui::Button("🧹 Clear Forces", buttonSize)) {
             for (int i = 0; i < config.numTypes; ++i) {
                 for (int j = 0; j < config.numTypes; ++j) {
                     particleSystem.setForce(i, j, 0.0f);
                 }
             }
+        }
+        ImGui::PopStyleColor(2);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Zero all forces\nParticles drift freely");
+        }
+        
+        ImGui::Spacing();
+        ImGui::Text("Motion Control:");
+        ImGui::Spacing();
+        
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.5f, 0.7f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.4f, 0.6f, 0.8f, 1.0f));
+        if (ImGui::Button("❄️ Freeze All", buttonSize)) {
+            auto& particles = particleSystem.getParticles();
+            for (auto& p : particles) {
+                p.vx = 0.0f;
+                p.vy = 0.0f;
+            }
+        }
+        ImGui::PopStyleColor(2);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Stop all particle motion\nForces still active");
+        }
+        
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.3f, 0.6f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.6f, 0.4f, 0.7f, 1.0f));
+        if (ImGui::Button("🛑 Zero + Freeze", buttonSize)) {
+            for (int i = 0; i < config.numTypes; ++i) {
+                for (int j = 0; j < config.numTypes; ++j) {
+                    particleSystem.setForce(i, j, 0.0f);
+                }
+            }
+            auto& particles = particleSystem.getParticles();
+            for (auto& p : particles) {
+                p.vx = 0.0f;
+                p.vy = 0.0f;
+            }
+        }
+        ImGui::PopStyleColor(2);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Clear forces AND freeze motion\nComplete stop");
         }
     }
     
@@ -424,7 +666,7 @@ void Interface::renderPerformanceHUD() {
     
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
     if (ImGui::Begin("Performance", &showPerformanceHUD, flags)) {
-        const auto& metrics = particleSystem.getPerformanceMetrics();
+        const auto& metrics = particleSystem.getMetrics();
         const auto& particles = particleSystem.getParticles();
         
         float fps = metrics.averageFPS;
@@ -535,7 +777,7 @@ void Interface::renderForceMatrixPanel() {
         }
         
         if (ImGui::Button("Randomize All", ImVec2(-1, 0))) {
-            particleSystem.generateRandomForces();
+            particleSystem.randomizeForces();
         }
         
         if (ImGui::Button("Reset to Zero", ImVec2(-1, 0))) {
@@ -590,69 +832,12 @@ void Interface::renderForceMatrixPanel() {
 }
 
 void Interface::renderAdvancedSettingsPanel() {
-    if (!showVisualEffects) return;
+    // Disabled: this panel duplicates the controls already present in the main control
+    // window, and the duplicated labels create ImGui ID conflicts when both code paths
+    // are reachable. If you want this window back, give it its own toggle flag and/or
+    // wrap its widgets in a unique PushID scope.
+    return;
     
-    ImGui::SetNextWindowPos(ImVec2(420, 20), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(320, 380), ImGuiCond_FirstUseEver);
-    
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse;
-    if (ImGui::Begin("Advanced Settings", &showVisualEffects, flags)) {
-        auto& renderConfig = renderer.getConfig();
-        
-        if (ImGui::CollapsingHeader("Visual Effects", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::PushItemWidth(-100);
-            
-            ImGui::Checkbox("Particle Trails", &renderConfig.enableTrails);
-            if (renderConfig.enableTrails) {
-                ImGui::SliderFloat("Trail Fade", &renderConfig.trailLength, 0.5f, 0.99f, "%.2f");
-                ImGui::SliderFloat("Trail Intensity", &renderConfig.trailIntensity, 0.1f, 1.0f, "%.2f");
-            }
-            
-            ImGui::Separator();
-            
-            ImGui::Checkbox("Particle Glow", &renderConfig.enableGlow);
-            
-            ImGui::SliderFloat("Particle Size", &renderConfig.particleSize, 2.0f, 20.0f, "%.1f px");
-            
-            ImGui::Checkbox("Size by Speed", &renderConfig.sizeBySpeed);
-            if (renderConfig.sizeBySpeed) {
-                ImGui::SliderFloat("Min Size", &renderConfig.minParticleSize, 1.0f, 10.0f, "%.1f");
-                ImGui::SliderFloat("Max Size", &renderConfig.maxParticleSize, 5.0f, 25.0f, "%.1f");
-            }
-            
-            ImGui::Separator();
-            
-            ImGui::Checkbox("Color by Speed", &renderConfig.colorBySpeed);
-            ImGui::Checkbox("Show Velocity Vectors", &renderConfig.showVelocityVectors);
-            
-            ImGui::PopItemWidth();
-        }
-        
-        if (ImGui::CollapsingHeader("Rendering Options")) {
-            ImGui::Checkbox("Show Grid", &renderConfig.showGrid);
-            ImGui::Checkbox("Show Center", &renderConfig.showCenter);
-            
-            ImGui::Separator();
-            ImGui::Text("Color Schemes:");
-            if (ImGui::RadioButton("Type Colors", renderConfig.useTypeColors)) {
-                renderConfig.useTypeColors = true;
-                renderConfig.useVelocityColors = false;
-            }
-            if (ImGui::RadioButton("Velocity Colors", renderConfig.useVelocityColors)) {
-                renderConfig.useTypeColors = false;
-                renderConfig.useVelocityColors = true;
-            }
-        }
-        
-        if (ImGui::CollapsingHeader("Animation Effects")) {
-            ImGui::Checkbox("Pulse Particles", &renderConfig.enablePulsation);
-            if (renderConfig.enablePulsation) {
-                ImGui::SliderFloat("Pulse Speed", &renderConfig.pulsationSpeed, 0.5f, 5.0f, "%.1f");
-                ImGui::SliderFloat("Pulse Amount", &renderConfig.pulsationAmount, 0.1f, 1.0f, "%.2f");
-            }
-        }
-    }
-    ImGui::End();
 }
 
 void Interface::renderQuickActionsPanel() {
@@ -684,7 +869,7 @@ void Interface::renderQuickActionsPanel() {
             }
             ImGui::SameLine();
             if (ImGui::Button("Chaos Mode", buttonSize)) {
-                particleSystem.generateRandomForces();
+                particleSystem.randomizeForces();
             }
             
             if (ImGui::Button("Mutual Attraction", buttonSize)) {
@@ -712,7 +897,7 @@ void Interface::renderQuickActionsPanel() {
             }
             ImGui::SameLine();
             if (ImGui::Button("Reset All", buttonSize)) {
-                particleSystem.reset();
+                particleSystem.resetSimulation(true);
             }
         }
         

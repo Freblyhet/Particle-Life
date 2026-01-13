@@ -34,6 +34,19 @@ Makefile
 # Log files
 *.log
 
+# ImGui generated files
+imgui.ini
+
+# macOS system files
+.DS_Store
+*.swp
+*~
+
+# Backup files
+*.backup
+*.backup2
+*.bak
+
 # OS specific
 .DS_Store
 Thumbs.db
