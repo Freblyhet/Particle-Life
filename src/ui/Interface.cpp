@@ -81,8 +81,8 @@ void Interface::setupModernStyle() {
     
     // Modern color scheme
     ImVec4* colors = style.Colors;
-    colors[ImGuiCol_WindowBg] = ImVec4(0.12f, 0.12f, 0.15f, 0.95f);
-    colors[ImGuiCol_ChildBg] = ImVec4(0.15f, 0.15f, 0.18f, 0.8f);
+    colors[ImGuiCol_WindowBg] = ImVec4(0.12f, 0.12f, 0.15f, 1.0f);  // Fully opaque
+    colors[ImGuiCol_ChildBg] = ImVec4(0.15f, 0.15f, 0.18f, 1.0f);   // Fully opaque
     colors[ImGuiCol_PopupBg] = ImVec4(0.12f, 0.12f, 0.15f, 0.98f);
     colors[ImGuiCol_Border] = ImVec4(0.25f, 0.25f, 0.3f, 1.0f);
     colors[ImGuiCol_BorderShadow] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -130,19 +130,25 @@ void Interface::renderMainControlPanel() {
     if (!showControlPanel) return;
 
     // Size/position the panel based on the *current* display size.
-    // This keeps the panel docked to the right in windowed mode and on HiDPI screens.
-    const float sidebarWidth = 350.0f;
+    // Panel starts after simulation area + gap and fills remaining space.
+    // ImGui uses logical pixels (same as window coordinates)
+    const float uiWidthLogical = 350.0f;
+    const float uiGapLogical = 20.0f;
     ImGuiIO& io = ImGui::GetIO();
-    const float screenW = io.DisplaySize.x;
+    const float screenW = io.DisplaySize.x;  // This is in logical pixels
     const float screenH = io.DisplaySize.y;
-    const float viewportW = std::max(1.0f, screenW - sidebarWidth);
+    const float simulationWidth = screenW - uiWidthLogical - uiGapLogical;
+    const float uiStartX = simulationWidth + uiGapLogical;
+    const float uiWidth = uiWidthLogical;
 
-    // Create fixed side panel docked to the right
-    ImGui::SetNextWindowPos(ImVec2(viewportW, 0.0f), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(sidebarWidth, screenH), ImGuiCond_Always);
+    // Create UI panel with gap between simulation
+    ImGui::SetNextWindowPos(ImVec2(uiStartX, 0.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(uiWidth, screenH), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(1.0f);  // Solid background
     
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | 
-                            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_MenuBar;
+                            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_MenuBar |
+                            ImGuiWindowFlags_NoBringToFrontOnFocus;
     // Don't pass a close pointer: this removes the (X) and prevents the panel being hidden.
     if (ImGui::Begin("Control Panel", nullptr, flags)) {
         

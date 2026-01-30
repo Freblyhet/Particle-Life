@@ -22,12 +22,22 @@
 // Application constants
 const int SCREEN_WIDTH = 1400;
 const int SCREEN_HEIGHT = 900;
-const int SIDEBAR_WIDTH = 350;  // Width of the side panel
+const int UI_WIDTH_LOGICAL = 350;  // UI width in logical pixels
+const int UI_GAP_LOGICAL = 20;  // Gap in logical pixels
 
 static void getSizes(GLFWwindow* window, int& fbW, int& fbH, int& viewportW, int& viewportH) {
-    // Use framebuffer size (in pixels) so HiDPI and window resizing behave correctly.
+    // Get both window size (logical) and framebuffer size (physical pixels)
+    int winW, winH;
+    glfwGetWindowSize(window, &winW, &winH);
     glfwGetFramebufferSize(window, &fbW, &fbH);
-    viewportW = std::max(1, fbW - SIDEBAR_WIDTH);
+    
+    // Calculate scale factor for HiDPI
+    float scaleX = (winW > 0) ? (float)fbW / (float)winW : 1.0f;
+    
+    // Calculate viewport in framebuffer pixels
+    int uiWidthFb = (int)(UI_WIDTH_LOGICAL * scaleX);
+    int gapWidthFb = (int)(UI_GAP_LOGICAL * scaleX);
+    viewportW = std::max(1, fbW - uiWidthFb - gapWidthFb);
     viewportH = std::max(1, fbH);
 }
 
@@ -182,8 +192,8 @@ void keyCallback(GLFWwindow* window, int key, int /*scancode*/, int action, int 
         } else if (key == GLFW_KEY_R) {
             g_app.particleSystem->resetSimulation(true);
             std::cout << "🔄 Simulation reset" << std::endl;
-        } else if (key == GLFW_KEY_P) {
-            std::cout << "📸 P key pressed - taking screenshot..." << std::endl;
+        } else if (key == GLFW_KEY_S) {
+            std::cout << "📸 S key pressed - taking screenshot..." << std::endl;
             takeScreenshot(window);
         }
     }
@@ -358,6 +368,7 @@ bool initializeApplication() {
     std::cout << "Controls:" << std::endl;
     std::cout << "  SPACE - Pause/Resume" << std::endl;
     std::cout << "  R - Randomize forces" << std::endl;
+    std::cout << "  S - Take screenshot" << std::endl;
     std::cout << "  Left Click + Drag - Repel particles" << std::endl;
     std::cout << "  Right Click - Spawn particles" << std::endl;
     std::cout << "  Middle Click - Remove particles" << std::endl;
@@ -447,14 +458,22 @@ int main() {
         int fbW = 0, fbH = 0, viewportW = 0, viewportH = 0;
         getSizes(g_app.window, fbW, fbH, viewportW, viewportH);
 
-        // Set viewport to simulation area only (left side)
-        glViewport(0, 0, viewportW, viewportH);
+        // Clear entire window with simulation background color first
+        glViewport(0, 0, fbW, fbH);
+        glClearColor(0.05f, 0.05f, 0.08f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // Set viewport and scissor to fixed simulation area (left side)
+        glViewport(0, 0, viewportW, fbH);
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(0, 0, viewportW, fbH);  // Clip rendering to simulation area only
         
-        // Render frame
+        // Render frame (setupFrame will clear again with trails logic)
         g_app.renderer->setupFrame();
         g_app.renderer->renderParticles(g_app.particleSystem->getParticles());
         
-        // Reset viewport for ImGui rendering
+        // Disable scissor and reset viewport for UI
+        glDisable(GL_SCISSOR_TEST);
         glViewport(0, 0, fbW, fbH);
         
         // Render UI

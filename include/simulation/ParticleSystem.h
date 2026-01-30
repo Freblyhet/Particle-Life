@@ -37,7 +37,7 @@ public:
         bool useSpatialHash = true;
         
         // Boundary mode
-        BoundaryMode boundaryMode = BOUNCE;
+        BoundaryMode boundaryMode = WRAP;
         
         // Advanced features removed for simplicity
 

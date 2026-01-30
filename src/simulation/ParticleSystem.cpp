@@ -39,7 +39,9 @@ glm::vec2 ParticleSystem::getWrappedDelta(const glm::vec2& from, const glm::vec2
 float ParticleSystem::calculateForce(float dist, float attraction) const {
     const float beta = 0.3f;
     if (dist < beta) {
-        return dist / beta - 1.0f;
+        // Only apply repulsion if there's actual attraction
+        // This prevents clustering when forces are zero
+        return attraction * (dist / beta - 1.0f);
     } else if (dist < 1.0f) {
         return attraction * (1.0f - std::abs(2.0f * dist - 1.0f - beta) / (1.0f - beta));
     }
@@ -376,28 +378,32 @@ void ParticleSystem::update(float deltaTime) {
     particles[i].x += particles[i].vx * dt;
     particles[i].y += particles[i].vy * dt;
         
-        // Boundary handling
-        const float boundary = 0.98f;
+        // Boundary handling - use fixed ±0.99 to keep particles cleanly inside viewport
+        const float boundary = 0.99f;  // Slightly inset for clean edges
         const float damping = 0.8f;
         
         if (config.boundaryMode == WRAP) {
-            particles[i].x = wrapCoord(particles[i].x);
-            particles[i].y = wrapCoord(particles[i].y);
+            // Instant wrapping
+            if (particles[i].x < -boundary) particles[i].x = boundary - 0.001f;
+            else if (particles[i].x > boundary) particles[i].x = -boundary + 0.001f;
+            if (particles[i].y < -boundary) particles[i].y = boundary - 0.001f;
+            else if (particles[i].y > boundary) particles[i].y = -boundary + 0.001f;
         } else if (config.boundaryMode == BOUNCE) {
+            // Hard bounce at boundary
             if (particles[i].x < -boundary) {
                 particles[i].x = -boundary;
-                particles[i].vx *= -damping;
+                particles[i].vx = std::abs(particles[i].vx) * damping;
             } else if (particles[i].x > boundary) {
                 particles[i].x = boundary;
-                particles[i].vx *= -damping;
+                particles[i].vx = -std::abs(particles[i].vx) * damping;
             }
             
             if (particles[i].y < -boundary) {
                 particles[i].y = -boundary;
-                particles[i].vy *= -damping;
+                particles[i].vy = std::abs(particles[i].vy) * damping;
             } else if (particles[i].y > boundary) {
                 particles[i].y = boundary;
-                particles[i].vy *= -damping;
+                particles[i].vy = -std::abs(particles[i].vy) * damping;
             }
         } else if (config.boundaryMode == KILL) {
             if (particles[i].x < -boundary || particles[i].x > boundary ||
