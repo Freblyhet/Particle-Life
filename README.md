@@ -4,11 +4,11 @@ A sophisticated particle life simulation featuring emergent behavior, dynamic re
 
 ## Screenshots
 
-![Modern Interface](ParticleLifeScreenshots/particle_life_20260107_114117_141.png)
+![Particle Dynamics](screenshots/shot1.png)
 
-![Interactive Spawning](ParticleLifeScreenshots/particle_life_20260107_114151_397.png)
+![Complex Patterns](screenshots/shot4.png)
 
-![Advanced Features](ParticleLifeScreenshots/particle_life_20260107_114207_699.png)
+![Emergent Behavior](screenshots/shot5.png)
 
 ## Features
 
